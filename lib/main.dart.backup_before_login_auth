@@ -1,0 +1,1263 @@
+import 'dart:ui';
+
+import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import 'supabase_config.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  await Supabase.initialize(
+    url: SupabaseConfig.url,
+    anonKey: SupabaseConfig.anonKey,
+  );
+
+  runApp(const WellnessIntelligenceApp());
+}
+
+class WellnessIntelligenceApp extends StatelessWidget {
+  const WellnessIntelligenceApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: '999 Wellness Intelligence',
+      theme: ThemeData(
+        brightness: Brightness.dark,
+        useMaterial3: true,
+        scaffoldBackgroundColor: const Color(0xFF09060F),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF9A62FF),
+          brightness: Brightness.dark,
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: Colors.white.withOpacity(0.06),
+          hintStyle: const TextStyle(color: Colors.white54),
+          labelStyle: const TextStyle(color: Colors.white70),
+          prefixIconColor: Colors.white70,
+          suffixIconColor: Colors.white70,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 18,
+            vertical: 18,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(color: Colors.white.withOpacity(0.14)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: Color(0xFFB991FF), width: 1.4),
+          ),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+        ),
+      ),
+      home: const LoginScreen(),
+    );
+  }
+}
+
+enum UserRole { customer, therapist, admin }
+
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+
+  UserRole _selectedRole = UserRole.customer;
+  bool _obscurePassword = true;
+  bool _rememberMe = true;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  String _roleLabel(UserRole role) {
+    switch (role) {
+      case UserRole.customer:
+        return 'Customer';
+      case UserRole.therapist:
+        return 'Wellness Provider';
+      case UserRole.admin:
+        return 'Owner / Admin';
+    }
+  }
+
+  void _handleContinue() {
+    FocusScope.of(context).unfocus();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'UI is working. Auth is not connected yet. Role: ${_roleLabel(_selectedRole)}',
+        ),
+      ),
+    );
+  }
+
+  void _handleCreateAccount() {
+    FocusScope.of(context).unfocus();
+
+    if (_selectedRole == UserRole.admin) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Owner / Admin accounts cannot be created through public registration.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => CreateAccountScreen(initialRole: _selectedRole),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final isMobile = constraints.maxWidth < 900;
+
+          return Stack(
+            children: [
+              const _BackgroundLayer(),
+              SafeArea(
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isMobile ? 16 : 28,
+                    vertical: isMobile ? 20 : 26,
+                  ),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 1380),
+                      child: Column(
+                        children: [
+                          _TopBrandRow(isMobile: isMobile),
+                          SizedBox(height: isMobile ? 24 : 18),
+                          Center(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 560),
+                              child: _GlassPanel(
+                                padding: EdgeInsets.all(isMobile ? 22 : 24),
+                                child: _buildLoginCard(isMobile),
+                              ),
+                            ),
+                          ),
+                          SizedBox(height: isMobile ? 22 : 18),
+                          _FeatureRow(isMobile: isMobile),
+                          const SizedBox(height: 14),
+                          Text(
+                            'Secure. Private. Professional.    Your wellness journey starts here.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.72),
+                              fontSize: isMobile ? 12 : 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildLoginCard(bool isMobile) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Icon(Icons.spa_outlined, color: Color(0xFFD8C3FF), size: 34),
+        const SizedBox(height: 12),
+        Text(
+          'WELCOME TO',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.9),
+            fontSize: isMobile ? 13 : 20,
+            fontWeight: FontWeight.w500,
+            letterSpacing: 1.4,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          '999 WELLNESS',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: const Color(0xFFB882FF),
+            fontSize: isMobile ? 34 : 44,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1.0,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          width: 110,
+          height: 2,
+          margin: const EdgeInsets.symmetric(horizontal: 90),
+          decoration: BoxDecoration(
+            color: const Color(0xFFE2C56E),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFE2C56E).withOpacity(0.55),
+                blurRadius: 8,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          'BOOK PROFESSIONAL WELLNESS PROVIDERS.',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.88),
+            fontSize: isMobile ? 11 : 18,
+            fontWeight: FontWeight.w400,
+          ),
+        ),
+        const SizedBox(height: 14),
+        _buildRoleSelector(isMobile),
+        const SizedBox(height: 12),
+        Text(
+          'EMAIL ADDRESS',
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.92),
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.6,
+          ),
+        ),
+        const SizedBox(height: 10),
+        TextField(
+          controller: _emailController,
+          keyboardType: TextInputType.emailAddress,
+          decoration: const InputDecoration(
+            hintText: 'Enter your email',
+            prefixIcon: Icon(Icons.mail_outline_rounded),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          'PASSWORD',
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.92),
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.6,
+          ),
+        ),
+        const SizedBox(height: 10),
+        TextField(
+          controller: _passwordController,
+          obscureText: _obscurePassword,
+          onSubmitted: (_) => _handleContinue(),
+          decoration: InputDecoration(
+            hintText: 'Enter your password',
+            prefixIcon: const Icon(Icons.lock_outline_rounded),
+            suffixIcon: IconButton(
+              onPressed: () {
+                setState(() {
+                  _obscurePassword = !_obscurePassword;
+                });
+              },
+              icon: Icon(
+                _obscurePassword
+                    ? Icons.visibility_off_outlined
+                    : Icons.visibility_outlined,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 14),
+        Row(
+          children: [
+            Theme(
+              data: Theme.of(context).copyWith(
+                checkboxTheme: CheckboxThemeData(
+                  fillColor: WidgetStateProperty.resolveWith((states) {
+                    if (states.contains(WidgetState.selected)) {
+                      return const Color(0xFF9D65FF);
+                    }
+                    return Colors.transparent;
+                  }),
+                  side: BorderSide(color: Colors.white.withOpacity(0.5)),
+                ),
+              ),
+              child: Checkbox(
+                value: _rememberMe,
+                onChanged: (value) {
+                  setState(() {
+                    _rememberMe = value ?? false;
+                  });
+                },
+              ),
+            ),
+            const Text('Remember me', style: TextStyle(fontSize: 14)),
+            const Spacer(),
+            TextButton(
+              onPressed: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Forgot Password will be connected next.'),
+                  ),
+                );
+              },
+              child: const Text('Forgot password?'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 50,
+          child: FilledButton(
+            onPressed: _handleContinue,
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF914DFF),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              elevation: 10,
+            ),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  'CONTINUE',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+                SizedBox(width: 10),
+                Icon(Icons.arrow_forward_rounded),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(child: Divider(color: Colors.white.withOpacity(0.16))),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              child: Text(
+                'OR',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.8),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            Expanded(child: Divider(color: Colors.white.withOpacity(0.16))),
+          ],
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 48,
+          child: OutlinedButton.icon(
+            onPressed: _handleCreateAccount,
+            icon: const Icon(Icons.person_add_alt_1_rounded),
+            label: const Text(
+              'CREATE ACCOUNT',
+              style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: 0.5),
+            ),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.white,
+              side: BorderSide(
+                color: const Color(0xFF9D65FF).withOpacity(0.75),
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRoleSelector(bool isMobile) {
+    return Row(
+      children: [
+        Expanded(
+          child: _RoleCard(
+            title: 'CUSTOMER',
+            icon: Icons.person_outline_rounded,
+            selected: _selectedRole == UserRole.customer,
+            onTap: () {
+              setState(() {
+                _selectedRole = UserRole.customer;
+              });
+            },
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _RoleCard(
+            title: 'WELLNESS PROVIDER',
+            icon: Icons.spa_outlined,
+            selected: _selectedRole == UserRole.therapist,
+            onTap: () {
+              setState(() {
+                _selectedRole = UserRole.therapist;
+              });
+            },
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _RoleCard(
+            title: isMobile ? 'ADMIN' : 'OWNER / ADMIN',
+            icon: Icons.shield_outlined,
+            selected: _selectedRole == UserRole.admin,
+            onTap: () {
+              setState(() {
+                _selectedRole = UserRole.admin;
+              });
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class CreateAccountScreen extends StatefulWidget {
+  const CreateAccountScreen({super.key, required this.initialRole});
+
+  final UserRole initialRole;
+
+  @override
+  State<CreateAccountScreen> createState() => _CreateAccountScreenState();
+}
+
+class _CreateAccountScreenState extends State<CreateAccountScreen> {
+  final _fullNameController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+
+  late UserRole _role;
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
+  bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _role = widget.initialRole == UserRole.therapist
+        ? UserRole.therapist
+        : UserRole.customer;
+  }
+
+  @override
+  void dispose() {
+    _fullNameController.dispose();
+    _phoneController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
+  String get _roleName =>
+      _role == UserRole.therapist ? 'Wellness Provider' : 'Customer';
+
+  Future<void> _createAccount() async {
+    FocusScope.of(context).unfocus();
+
+    final fullName = _fullNameController.text.trim();
+    final phone = _phoneController.text.trim();
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+    final confirmPassword = _confirmPasswordController.text;
+
+    if (fullName.isEmpty ||
+        phone.isEmpty ||
+        email.isEmpty ||
+        password.isEmpty ||
+        confirmPassword.isEmpty) {
+      _showMessage('Please complete all fields.');
+      return;
+    }
+
+    if (!email.contains('@') || !email.contains('.')) {
+      _showMessage('Please enter a valid email address.');
+      return;
+    }
+
+    if (password.length < 8) {
+      _showMessage('Password must be at least 8 characters.');
+      return;
+    }
+
+    if (password != confirmPassword) {
+      _showMessage('Passwords do not match.');
+      return;
+    }
+
+    setState(() => _loading = true);
+
+    try {
+      final roleValue = _role == UserRole.therapist ? 'provider' : 'customer';
+
+      final response = await Supabase.instance.client.auth.signUp(
+        email: email,
+        password: password,
+        data: {'full_name': fullName, 'phone': phone, 'role': roleValue},
+      );
+
+      if (response.user == null) {
+        throw Exception('Account could not be created.');
+      }
+
+      if (Supabase.instance.client.auth.currentSession != null) {
+        await Supabase.instance.client.auth.signOut();
+      }
+
+      if (!mounted) return;
+
+      final message = response.session == null
+          ? 'Account created. Check your email to confirm your account.'
+          : 'Account created successfully. You can now sign in.';
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
+
+      Navigator.of(context).pop();
+    } on AuthException catch (error) {
+      _showMessage(error.message);
+    } catch (_) {
+      _showMessage('Unable to create account. Please try again.');
+    } finally {
+      if (mounted) {
+        setState(() => _loading = false);
+      }
+    }
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Stack(
+        children: [
+          const _BackgroundLayer(),
+          SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 580),
+                  child: _GlassPanel(
+                    padding: const EdgeInsets.all(26),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          children: [
+                            IconButton(
+                              onPressed: _loading
+                                  ? null
+                                  : () => Navigator.of(context).pop(),
+                              icon: const Icon(Icons.arrow_back_rounded),
+                            ),
+                            const Spacer(),
+                            const Icon(
+                              Icons.spa_outlined,
+                              color: Color(0xFFD8C3FF),
+                              size: 32,
+                            ),
+                            const Spacer(),
+                            const SizedBox(width: 48),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        const Text(
+                          'CREATE YOUR ACCOUNT',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 26,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.7,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Join 999 Wellness Intelligence',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.72),
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+
+                        const Text(
+                          'ACCOUNT TYPE',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _RoleCard(
+                                title: 'CUSTOMER',
+                                icon: Icons.person_outline_rounded,
+                                selected: _role == UserRole.customer,
+                                onTap: _loading
+                                    ? () {}
+                                    : () {
+                                        setState(() {
+                                          _role = UserRole.customer;
+                                        });
+                                      },
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _RoleCard(
+                                title: 'WELLNESS PROVIDER',
+                                icon: Icons.spa_outlined,
+                                selected: _role == UserRole.therapist,
+                                onTap: _loading
+                                    ? () {}
+                                    : () {
+                                        setState(() {
+                                          _role = UserRole.therapist;
+                                        });
+                                      },
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        if (_role == UserRole.therapist) ...[
+                          const SizedBox(height: 12),
+                          Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF9D65FF).withOpacity(0.10),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: const Color(0xFFB991FF)
+                                    .withOpacity(0.25),
+                              ),
+                            ),
+                            child: const Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(
+                                  Icons.verified_user_outlined,
+                                  size: 20,
+                                  color: Color(0xFFD8C3FF),
+                                ),
+                                SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    'Wellness Provider accounts are reviewed before provider access is approved.',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      height: 1.35,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+
+                        const SizedBox(height: 20),
+                        TextField(
+                          controller: _fullNameController,
+                          textCapitalization: TextCapitalization.words,
+                          decoration: const InputDecoration(
+                            labelText: 'Full name',
+                            hintText: 'Enter your full name',
+                            prefixIcon: Icon(Icons.badge_outlined),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        TextField(
+                          controller: _phoneController,
+                          keyboardType: TextInputType.phone,
+                          decoration: const InputDecoration(
+                            labelText: 'Phone number',
+                            hintText: 'Enter your phone number',
+                            prefixIcon: Icon(Icons.phone_outlined),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        TextField(
+                          controller: _emailController,
+                          keyboardType: TextInputType.emailAddress,
+                          decoration: const InputDecoration(
+                            labelText: 'Email address',
+                            hintText: 'Enter your email',
+                            prefixIcon: Icon(Icons.mail_outline_rounded),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        TextField(
+                          controller: _passwordController,
+                          obscureText: _obscurePassword,
+                          decoration: InputDecoration(
+                            labelText: 'Password',
+                            hintText: 'Minimum 8 characters',
+                            prefixIcon: const Icon(Icons.lock_outline_rounded),
+                            suffixIcon: IconButton(
+                              onPressed: () {
+                                setState(() {
+                                  _obscurePassword = !_obscurePassword;
+                                });
+                              },
+                              icon: Icon(
+                                _obscurePassword
+                                    ? Icons.visibility_off_outlined
+                                    : Icons.visibility_outlined,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        TextField(
+                          controller: _confirmPasswordController,
+                          obscureText: _obscureConfirmPassword,
+                          onSubmitted: _loading
+                              ? null
+                              : (_) => _createAccount(),
+                          decoration: InputDecoration(
+                            labelText: 'Confirm password',
+                            hintText: 'Re-enter your password',
+                            prefixIcon: const Icon(Icons.lock_outline_rounded),
+                            suffixIcon: IconButton(
+                              onPressed: () {
+                                setState(() {
+                                  _obscureConfirmPassword =
+                                      !_obscureConfirmPassword;
+                                });
+                              },
+                              icon: Icon(
+                                _obscureConfirmPassword
+                                    ? Icons.visibility_off_outlined
+                                    : Icons.visibility_outlined,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 22),
+
+                        SizedBox(
+                          height: 52,
+                          child: FilledButton(
+                            onPressed: _loading ? null : _createAccount,
+                            style: FilledButton.styleFrom(
+                              backgroundColor: const Color(0xFF914DFF),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                            ),
+                            child: _loading
+                                ? const SizedBox(
+                                    width: 22,
+                                    height: 22,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2.5,
+                                    ),
+                                  )
+                                : Text(
+                                    'CREATE $_roleName ACCOUNT'.toUpperCase(),
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        Text(
+                          'Owner / Admin accounts are issued separately and cannot be created through public registration.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.55),
+                            fontSize: 11.5,
+                            height: 1.35,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TopBrandRow extends StatelessWidget {
+  const _TopBrandRow({required this.isMobile});
+
+  final bool isMobile;
+
+  @override
+  Widget build(BuildContext context) {
+    if (isMobile) {
+      return Column(
+        children: [
+          const Icon(Icons.spa_rounded, size: 46, color: Color(0xFFC38CFF)),
+          const SizedBox(height: 8),
+          const Text(
+            '999 WELLNESS',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.3,
+            ),
+          ),
+          Text(
+            'INTELLIGENCE',
+            style: TextStyle(
+              color: const Color(0xFFD3BBFF).withOpacity(0.95),
+              fontSize: 9.5,
+              letterSpacing: 3.2,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'PROFESSIONAL MASSAGE\n& WELLNESS MARKETPLACE',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.88),
+              fontSize: 14,
+              height: 1.35,
+              letterSpacing: 0.8,
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Row(
+      children: [
+        const Icon(Icons.spa_rounded, size: 56, color: Color(0xFFC38CFF)),
+        const SizedBox(width: 14),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '999 WELLNESS',
+              style: TextStyle(
+                fontSize: 34,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.0,
+              ),
+            ),
+            Text(
+              'INTELLIGENCE',
+              style: TextStyle(
+                color: const Color(0xFFD3BBFF).withOpacity(0.95),
+                fontSize: 15,
+                letterSpacing: 7,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(width: 20),
+        Container(width: 1, height: 52, color: Colors.white.withOpacity(0.24)),
+        const SizedBox(width: 20),
+        Expanded(
+          child: Text(
+            'PROFESSIONAL MASSAGE\n& WELLNESS MARKETPLACE',
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.9),
+              fontSize: 18,
+              height: 1.35,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _FeatureRow extends StatelessWidget {
+  const _FeatureRow({required this.isMobile});
+
+  final bool isMobile;
+
+  @override
+  Widget build(BuildContext context) {
+    final items = [
+      (
+        Icons.lock_outline_rounded,
+        'SECURE & PRIVATE',
+        'Your information\nis protected',
+      ),
+      (
+        Icons.spa_outlined,
+        'PROFESSIONAL VERIFIED',
+        'Experienced wellness\nproviders',
+      ),
+      (
+        Icons.calendar_month_outlined,
+        'EASY ONLINE BOOKING',
+        'Book anytime,\nanywhere',
+      ),
+      (
+        Icons.favorite_border_rounded,
+        'WELLNESS YOUR WAY',
+        'Relax. Reconnect.\nFeel your best.',
+      ),
+    ];
+
+    if (isMobile) {
+      return Column(
+        children: items
+            .map(
+              (item) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _FeatureTile(
+                  icon: item.$1,
+                  title: item.$2,
+                  subtitle: item.$3,
+                ),
+              ),
+            )
+            .toList(),
+      );
+    }
+
+    return Row(
+      children: items
+          .map(
+            (item) => Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: _FeatureTile(
+                  icon: item.$1,
+                  title: item.$2,
+                  subtitle: item.$3,
+                ),
+              ),
+            ),
+          )
+          .toList(),
+    );
+  }
+}
+
+class _FeatureTile extends StatelessWidget {
+  const _FeatureTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return _GlassPanel(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: const Color(0xFF9D65FF).withOpacity(0.18),
+              border: Border.all(
+                color: const Color(0xFFC8A8FF).withOpacity(0.5),
+              ),
+            ),
+            child: Icon(icon, color: const Color(0xFFE4D5FF), size: 22),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 12,
+                    height: 1.35,
+                    color: Colors.white.withOpacity(0.72),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RoleCard extends StatelessWidget {
+  const _RoleCard({
+    required this.title,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String title;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final activeColor = const Color(0xFF9A62FF);
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          color: selected ? activeColor.withOpacity(0.34) : Colors.transparent,
+          border: Border.all(
+            color: selected
+                ? activeColor.withOpacity(0.9)
+                : Colors.white.withOpacity(0.15),
+          ),
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: activeColor.withOpacity(0.18),
+                    blurRadius: 20,
+                    spreadRadius: 0.5,
+                  ),
+                ]
+              : [],
+        ),
+        child: Column(
+          children: [
+            Icon(
+              icon,
+              color: selected ? Colors.white : Colors.white.withOpacity(0.72),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                color: selected ? Colors.white : Colors.white.withOpacity(0.82),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GlassPanel extends StatelessWidget {
+  const _GlassPanel({required this.child, required this.padding});
+
+  final Widget child;
+  final EdgeInsets padding;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(28),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+        child: Container(
+          padding: padding,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(28),
+            color: const Color(0xFF140D1E).withOpacity(0.80),
+            border: Border.all(
+              color: const Color(0xFFB88DFF).withOpacity(0.24),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.35),
+                blurRadius: 36,
+                offset: const Offset(0, 18),
+              ),
+            ],
+          ),
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
+class _BackgroundLayer extends StatelessWidget {
+  const _BackgroundLayer();
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final mobile = constraints.maxWidth < 700;
+
+        if (!mobile) {
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              Container(color: const Color(0xFF08050C)),
+              Image.asset(
+                'assets/login_background.png',
+                fit: BoxFit.cover,
+                alignment: Alignment.center,
+                filterQuality: FilterQuality.high,
+              ),
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.black.withValues(alpha: 0.05),
+                      const Color(0xFF100817).withValues(alpha: 0.10),
+                      Colors.black.withValues(alpha: 0.24),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          );
+        }
+
+        // MOBILE:
+        // Keep the entire width of the original landscape image visible.
+        // This preserves BOTH massage scenes instead of cropping them away.
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            Container(color: const Color(0xFF08050C)),
+
+            Align(
+              alignment: Alignment.topCenter,
+              child: SizedBox(
+                width: constraints.maxWidth,
+                child: Image.asset(
+                  'assets/login_background.png',
+                  width: constraints.maxWidth,
+                  fit: BoxFit.fitWidth,
+                  alignment: Alignment.topCenter,
+                  filterQuality: FilterQuality.high,
+                ),
+              ),
+            ),
+
+            // Darken the very top slightly so branding remains readable.
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 110,
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.black.withValues(alpha: 0.38),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+            // Smoothly fade the photo into the login area.
+            Positioned(
+              top: 215,
+              left: 0,
+              right: 0,
+              height: 275,
+              child: IgnorePointer(
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.transparent,
+                        const Color(0xFF09060F).withValues(alpha: 0.56),
+                        const Color(0xFF09060F).withValues(alpha: 0.94),
+                        const Color(0xFF09060F),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+            // Continue the same dark background down the page.
+            Positioned(
+              top: 470,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: Container(color: const Color(0xFF09060F)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
