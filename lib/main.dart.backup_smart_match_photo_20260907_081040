@@ -5473,7 +5473,7 @@ class _CustomerV3PageHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: desktop ? 215 : 190,
+      height: desktop ? 215 : 162,
       margin: EdgeInsets.fromLTRB(desktop ? 22 : 9, 14, desktop ? 22 : 9, 12),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(25),
@@ -13635,7 +13635,7 @@ class _CustomerAiSmartMatchScreenState
           .from('provider_profiles')
           .select(
             'id, full_name, professional_name, business_name, bio, '
-            'service_area, available_now, rating, review_count, profile_photo_url',
+            'service_area, available_now, rating, review_count',
           )
           .order('professional_name');
 
@@ -13722,7 +13722,6 @@ class _CustomerAiSmartMatchScreenState
               ? businessName
               : 'Wellness Provider',
           'rating': rating > 0 ? rating.toStringAsFixed(1) : 'NEW',
-          'profile_photo_url': profile['profile_photo_url']?.toString() ?? '',
           'match': 'LIVE',
           'reason': reasonParts.join(' '),
           'color': const Color(0xFF5EDCFF),
@@ -14114,79 +14113,19 @@ class _SmartMatchResultCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          SizedBox(
-            width: 51,
-            height: 51,
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Container(
-                  width: 47,
-                  height: 47,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: color.withValues(alpha: .13),
-                    border: Border.all(
-                      color: color.withValues(alpha: .65),
-                      width: 2,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: color.withValues(alpha: .18),
-                        blurRadius: 12,
-                        spreadRadius: 1,
-                      ),
-                    ],
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child:
-                      (provider['profile_photo_url']
-                              ?.toString()
-                              .trim()
-                              .isNotEmpty ??
-                          false)
-                      ? Image.network(
-                          provider['profile_photo_url'].toString().trim(),
-                          width: 47,
-                          height: 47,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Icon(
-                            Icons.person_rounded,
-                            color: color,
-                            size: 25,
-                          ),
-                        )
-                      : Icon(Icons.person_rounded, color: color, size: 25),
-                ),
-                Positioned(
-                  right: 0,
-                  bottom: 0,
-                  child: Container(
-                    constraints: const BoxConstraints(
-                      minWidth: 19,
-                      minHeight: 19,
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 5,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF111827),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: color.withValues(alpha: .85)),
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      '#$rank',
-                      style: TextStyle(
-                        color: color,
-                        fontSize: 7,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+          Container(
+            width: 47,
+            height: 47,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: color.withValues(alpha: .13),
+              border: Border.all(color: color.withValues(alpha: .45)),
+            ),
+            child: Center(
+              child: Text(
+                '#$rank',
+                style: TextStyle(color: color, fontWeight: FontWeight.w900),
+              ),
             ),
           ),
 

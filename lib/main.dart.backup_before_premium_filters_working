@@ -1,0 +1,2662 @@
+import 'dart:ui';
+
+import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import 'supabase_config.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  await Supabase.initialize(
+    url: SupabaseConfig.url,
+    anonKey: SupabaseConfig.anonKey,
+  );
+
+  runApp(const WellnessIntelligenceApp());
+}
+
+class WellnessIntelligenceApp extends StatelessWidget {
+  const WellnessIntelligenceApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: '999 Wellness Intelligence',
+      theme: ThemeData(
+        brightness: Brightness.dark,
+        useMaterial3: true,
+        scaffoldBackgroundColor: const Color(0xFF09060F),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF9A62FF),
+          brightness: Brightness.dark,
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: Colors.white.withOpacity(0.06),
+          hintStyle: const TextStyle(color: Colors.white54),
+          labelStyle: const TextStyle(color: Colors.white70),
+          prefixIconColor: Colors.white70,
+          suffixIconColor: Colors.white70,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 18,
+            vertical: 18,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(color: Colors.white.withOpacity(0.14)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: Color(0xFFB991FF), width: 1.4),
+          ),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+        ),
+      ),
+      home: const LoginScreen(),
+    );
+  }
+}
+
+enum UserRole { customer, therapist, admin }
+
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+
+  UserRole _selectedRole = UserRole.customer;
+  bool _obscurePassword = true;
+  bool _rememberMe = true;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  String _roleLabel(UserRole role) {
+    switch (role) {
+      case UserRole.customer:
+        return 'Customer';
+      case UserRole.therapist:
+        return 'Wellness Provider';
+      case UserRole.admin:
+        return 'Owner / Admin';
+    }
+  }
+
+  Future<void> _handleContinue() async {
+    FocusScope.of(context).unfocus();
+
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter your email address and password.')),
+      );
+      return;
+    }
+
+    try {
+      final response = await Supabase.instance.client.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
+
+      final user = response.user;
+
+      if (user == null) {
+        throw const AuthException('Unable to sign in.');
+      }
+
+      final profile = await Supabase.instance.client
+          .from('profiles')
+          .select('role, status, full_name')
+          .eq('id', user.id)
+          .single();
+
+      final accountRole = profile['role']?.toString() ?? 'customer';
+      final accountStatus = profile['status']?.toString() ?? 'active';
+
+      final expectedRole = switch (_selectedRole) {
+        UserRole.customer => 'customer',
+        UserRole.therapist => 'provider',
+        UserRole.admin => 'admin',
+      };
+
+      if (accountRole != expectedRole) {
+        await Supabase.instance.client.auth.signOut();
+
+        if (!mounted) return;
+
+        final actualLabel = accountRole == 'provider'
+            ? 'Wellness Provider'
+            : accountRole == 'admin'
+            ? 'Owner / Admin'
+            : 'Customer';
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'This account is registered as $actualLabel. Select the correct account type.',
+            ),
+          ),
+        );
+        return;
+      }
+
+      if (accountRole == 'provider' && accountStatus == 'pending') {
+        await Supabase.instance.client.auth.signOut();
+
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Your Wellness Provider account is pending approval.',
+            ),
+          ),
+        );
+        return;
+      }
+
+      if (accountStatus == 'suspended') {
+        await Supabase.instance.client.auth.signOut();
+
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('This account has been suspended.')),
+        );
+        return;
+      }
+
+      if (!mounted) return;
+
+      final name =
+          profile['full_name']?.toString() ?? _roleLabel(_selectedRole);
+
+      if (accountRole == 'customer') {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => CustomerHomeScreen(name: name)),
+        );
+        return;
+      }
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Welcome $name.')));
+    } on AuthException catch (error) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(error.message)));
+    } catch (error) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Unable to sign in: $error')));
+    }
+  }
+
+  Future<void> _handleForgotPassword() async {
+    FocusScope.of(context).unfocus();
+
+    final email = _emailController.text.trim();
+
+    if (email.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Enter your email address first, then tap Forgot password.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    try {
+      await Supabase.instance.client.auth.resetPasswordForEmail(email);
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Password reset email sent. Check your inbox.'),
+        ),
+      );
+    } on AuthException catch (error) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(error.message)));
+    }
+  }
+
+  void _handleCreateAccount() {
+    FocusScope.of(context).unfocus();
+
+    if (_selectedRole == UserRole.admin) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Owner / Admin accounts cannot be created through public registration.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => CreateAccountScreen(initialRole: _selectedRole),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final isMobile = constraints.maxWidth < 900;
+
+          return Stack(
+            children: [
+              const _BackgroundLayer(),
+              SafeArea(
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isMobile ? 16 : 28,
+                    vertical: isMobile ? 20 : 26,
+                  ),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 1380),
+                      child: Column(
+                        children: [
+                          _TopBrandRow(isMobile: isMobile),
+                          SizedBox(height: isMobile ? 24 : 18),
+                          Center(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 560),
+                              child: _GlassPanel(
+                                padding: EdgeInsets.all(isMobile ? 22 : 24),
+                                child: _buildLoginCard(isMobile),
+                              ),
+                            ),
+                          ),
+                          SizedBox(height: isMobile ? 22 : 18),
+                          _FeatureRow(isMobile: isMobile),
+                          const SizedBox(height: 14),
+                          Text(
+                            'Secure. Private. Professional.    Your wellness journey starts here.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.72),
+                              fontSize: isMobile ? 12 : 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildLoginCard(bool isMobile) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Icon(Icons.spa_outlined, color: Color(0xFFD8C3FF), size: 34),
+        const SizedBox(height: 12),
+        Text(
+          'WELCOME TO',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.9),
+            fontSize: isMobile ? 13 : 20,
+            fontWeight: FontWeight.w500,
+            letterSpacing: 1.4,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          '999 WELLNESS',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: const Color(0xFFB882FF),
+            fontSize: isMobile ? 34 : 44,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1.0,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          width: 110,
+          height: 2,
+          margin: const EdgeInsets.symmetric(horizontal: 90),
+          decoration: BoxDecoration(
+            color: const Color(0xFFE2C56E),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFE2C56E).withOpacity(0.55),
+                blurRadius: 8,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          'BOOK PROFESSIONAL WELLNESS PROVIDERS.',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.88),
+            fontSize: isMobile ? 11 : 18,
+            fontWeight: FontWeight.w400,
+          ),
+        ),
+        const SizedBox(height: 14),
+        _buildRoleSelector(isMobile),
+        const SizedBox(height: 12),
+        Text(
+          'EMAIL ADDRESS',
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.92),
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.6,
+          ),
+        ),
+        const SizedBox(height: 10),
+        TextField(
+          controller: _emailController,
+          keyboardType: TextInputType.emailAddress,
+          decoration: const InputDecoration(
+            hintText: 'Enter your email',
+            prefixIcon: Icon(Icons.mail_outline_rounded),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          'PASSWORD',
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.92),
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.6,
+          ),
+        ),
+        const SizedBox(height: 10),
+        TextField(
+          controller: _passwordController,
+          obscureText: _obscurePassword,
+          onSubmitted: (_) => _handleContinue(),
+          decoration: InputDecoration(
+            hintText: 'Enter your password',
+            prefixIcon: const Icon(Icons.lock_outline_rounded),
+            suffixIcon: IconButton(
+              onPressed: () {
+                setState(() {
+                  _obscurePassword = !_obscurePassword;
+                });
+              },
+              icon: Icon(
+                _obscurePassword
+                    ? Icons.visibility_off_outlined
+                    : Icons.visibility_outlined,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 14),
+        Row(
+          children: [
+            Theme(
+              data: Theme.of(context).copyWith(
+                checkboxTheme: CheckboxThemeData(
+                  fillColor: WidgetStateProperty.resolveWith((states) {
+                    if (states.contains(WidgetState.selected)) {
+                      return const Color(0xFF9D65FF);
+                    }
+                    return Colors.transparent;
+                  }),
+                  side: BorderSide(color: Colors.white.withOpacity(0.5)),
+                ),
+              ),
+              child: Checkbox(
+                value: _rememberMe,
+                onChanged: (value) {
+                  setState(() {
+                    _rememberMe = value ?? false;
+                  });
+                },
+              ),
+            ),
+            const Text('Remember me', style: TextStyle(fontSize: 14)),
+            const Spacer(),
+            TextButton(
+              onPressed: _handleForgotPassword,
+              child: const Text('Forgot password?'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 50,
+          child: FilledButton(
+            onPressed: _handleContinue,
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF914DFF),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              elevation: 10,
+            ),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  'CONTINUE',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+                SizedBox(width: 10),
+                Icon(Icons.arrow_forward_rounded),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(child: Divider(color: Colors.white.withOpacity(0.16))),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              child: Text(
+                'OR',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.8),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            Expanded(child: Divider(color: Colors.white.withOpacity(0.16))),
+          ],
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 48,
+          child: OutlinedButton.icon(
+            onPressed: _handleCreateAccount,
+            icon: const Icon(Icons.person_add_alt_1_rounded),
+            label: const Text(
+              'CREATE ACCOUNT',
+              style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: 0.5),
+            ),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.white,
+              side: BorderSide(
+                color: const Color(0xFF9D65FF).withOpacity(0.75),
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRoleSelector(bool isMobile) {
+    return Row(
+      children: [
+        Expanded(
+          child: _RoleCard(
+            title: 'CUSTOMER',
+            icon: Icons.person_outline_rounded,
+            selected: _selectedRole == UserRole.customer,
+            onTap: () {
+              setState(() {
+                _selectedRole = UserRole.customer;
+              });
+            },
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _RoleCard(
+            title: 'WELLNESS PROVIDER',
+            icon: Icons.spa_outlined,
+            selected: _selectedRole == UserRole.therapist,
+            onTap: () {
+              setState(() {
+                _selectedRole = UserRole.therapist;
+              });
+            },
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _RoleCard(
+            title: isMobile ? 'ADMIN' : 'OWNER / ADMIN',
+            icon: Icons.shield_outlined,
+            selected: _selectedRole == UserRole.admin,
+            onTap: () {
+              setState(() {
+                _selectedRole = UserRole.admin;
+              });
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class CreateAccountScreen extends StatefulWidget {
+  const CreateAccountScreen({super.key, required this.initialRole});
+
+  final UserRole initialRole;
+
+  @override
+  State<CreateAccountScreen> createState() => _CreateAccountScreenState();
+}
+
+class _CreateAccountScreenState extends State<CreateAccountScreen> {
+  final _fullNameController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+
+  late UserRole _role;
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
+  bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _role = widget.initialRole == UserRole.therapist
+        ? UserRole.therapist
+        : UserRole.customer;
+  }
+
+  @override
+  void dispose() {
+    _fullNameController.dispose();
+    _phoneController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
+  String get _roleName =>
+      _role == UserRole.therapist ? 'Wellness Provider' : 'Customer';
+
+  Future<void> _createAccount() async {
+    FocusScope.of(context).unfocus();
+
+    final fullName = _fullNameController.text.trim();
+    final phone = _phoneController.text.trim();
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+    final confirmPassword = _confirmPasswordController.text;
+
+    if (fullName.isEmpty ||
+        phone.isEmpty ||
+        email.isEmpty ||
+        password.isEmpty ||
+        confirmPassword.isEmpty) {
+      _showMessage('Please complete all fields.');
+      return;
+    }
+
+    if (!email.contains('@') || !email.contains('.')) {
+      _showMessage('Please enter a valid email address.');
+      return;
+    }
+
+    if (password.length < 8) {
+      _showMessage('Password must be at least 8 characters.');
+      return;
+    }
+
+    if (password != confirmPassword) {
+      _showMessage('Passwords do not match.');
+      return;
+    }
+
+    setState(() => _loading = true);
+
+    try {
+      final roleValue = _role == UserRole.therapist ? 'provider' : 'customer';
+
+      final response = await Supabase.instance.client.auth.signUp(
+        email: email,
+        password: password,
+        data: {'full_name': fullName, 'phone': phone, 'role': roleValue},
+      );
+
+      if (response.user == null) {
+        throw Exception('Account could not be created.');
+      }
+
+      if (Supabase.instance.client.auth.currentSession != null) {
+        await Supabase.instance.client.auth.signOut();
+      }
+
+      if (!mounted) return;
+
+      final message = response.session == null
+          ? 'Account created. Check your email to confirm your account.'
+          : 'Account created successfully. You can now sign in.';
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
+
+      Navigator.of(context).pop();
+    } on AuthException catch (error) {
+      _showMessage(error.message);
+    } catch (_) {
+      _showMessage('Unable to create account. Please try again.');
+    } finally {
+      if (mounted) {
+        setState(() => _loading = false);
+      }
+    }
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Stack(
+        children: [
+          const _BackgroundLayer(),
+          SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 580),
+                  child: _GlassPanel(
+                    padding: const EdgeInsets.all(26),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          children: [
+                            IconButton(
+                              onPressed: _loading
+                                  ? null
+                                  : () => Navigator.of(context).pop(),
+                              icon: const Icon(Icons.arrow_back_rounded),
+                            ),
+                            const Spacer(),
+                            const Icon(
+                              Icons.spa_outlined,
+                              color: Color(0xFFD8C3FF),
+                              size: 32,
+                            ),
+                            const Spacer(),
+                            const SizedBox(width: 48),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        const Text(
+                          'CREATE YOUR ACCOUNT',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 26,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.7,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Join 999 Wellness Intelligence',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.72),
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+
+                        const Text(
+                          'ACCOUNT TYPE',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _RoleCard(
+                                title: 'CUSTOMER',
+                                icon: Icons.person_outline_rounded,
+                                selected: _role == UserRole.customer,
+                                onTap: _loading
+                                    ? () {}
+                                    : () {
+                                        setState(() {
+                                          _role = UserRole.customer;
+                                        });
+                                      },
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _RoleCard(
+                                title: 'WELLNESS PROVIDER',
+                                icon: Icons.spa_outlined,
+                                selected: _role == UserRole.therapist,
+                                onTap: _loading
+                                    ? () {}
+                                    : () {
+                                        setState(() {
+                                          _role = UserRole.therapist;
+                                        });
+                                      },
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        if (_role == UserRole.therapist) ...[
+                          const SizedBox(height: 12),
+                          Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF9D65FF).withOpacity(0.10),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: const Color(0xFFB991FF)
+                                    .withOpacity(0.25),
+                              ),
+                            ),
+                            child: const Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(
+                                  Icons.verified_user_outlined,
+                                  size: 20,
+                                  color: Color(0xFFD8C3FF),
+                                ),
+                                SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    'Wellness Provider accounts are reviewed before provider access is approved.',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      height: 1.35,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+
+                        const SizedBox(height: 20),
+                        TextField(
+                          controller: _fullNameController,
+                          textCapitalization: TextCapitalization.words,
+                          decoration: const InputDecoration(
+                            labelText: 'Full name',
+                            hintText: 'Enter your full name',
+                            prefixIcon: Icon(Icons.badge_outlined),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        TextField(
+                          controller: _phoneController,
+                          keyboardType: TextInputType.phone,
+                          decoration: const InputDecoration(
+                            labelText: 'Phone number',
+                            hintText: 'Enter your phone number',
+                            prefixIcon: Icon(Icons.phone_outlined),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        TextField(
+                          controller: _emailController,
+                          keyboardType: TextInputType.emailAddress,
+                          decoration: const InputDecoration(
+                            labelText: 'Email address',
+                            hintText: 'Enter your email',
+                            prefixIcon: Icon(Icons.mail_outline_rounded),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        TextField(
+                          controller: _passwordController,
+                          obscureText: _obscurePassword,
+                          decoration: InputDecoration(
+                            labelText: 'Password',
+                            hintText: 'Minimum 8 characters',
+                            prefixIcon: const Icon(Icons.lock_outline_rounded),
+                            suffixIcon: IconButton(
+                              onPressed: () {
+                                setState(() {
+                                  _obscurePassword = !_obscurePassword;
+                                });
+                              },
+                              icon: Icon(
+                                _obscurePassword
+                                    ? Icons.visibility_off_outlined
+                                    : Icons.visibility_outlined,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        TextField(
+                          controller: _confirmPasswordController,
+                          obscureText: _obscureConfirmPassword,
+                          onSubmitted: _loading
+                              ? null
+                              : (_) => _createAccount(),
+                          decoration: InputDecoration(
+                            labelText: 'Confirm password',
+                            hintText: 'Re-enter your password',
+                            prefixIcon: const Icon(Icons.lock_outline_rounded),
+                            suffixIcon: IconButton(
+                              onPressed: () {
+                                setState(() {
+                                  _obscureConfirmPassword =
+                                      !_obscureConfirmPassword;
+                                });
+                              },
+                              icon: Icon(
+                                _obscureConfirmPassword
+                                    ? Icons.visibility_off_outlined
+                                    : Icons.visibility_outlined,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 22),
+
+                        SizedBox(
+                          height: 52,
+                          child: FilledButton(
+                            onPressed: _loading ? null : _createAccount,
+                            style: FilledButton.styleFrom(
+                              backgroundColor: const Color(0xFF914DFF),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                            ),
+                            child: _loading
+                                ? const SizedBox(
+                                    width: 22,
+                                    height: 22,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2.5,
+                                    ),
+                                  )
+                                : Text(
+                                    'CREATE $_roleName ACCOUNT'.toUpperCase(),
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        Text(
+                          'Owner / Admin accounts are issued separately and cannot be created through public registration.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.55),
+                            fontSize: 11.5,
+                            height: 1.35,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TopBrandRow extends StatelessWidget {
+  const _TopBrandRow({required this.isMobile});
+
+  final bool isMobile;
+
+  @override
+  Widget build(BuildContext context) {
+    if (isMobile) {
+      return Column(
+        children: [
+          const Icon(Icons.spa_rounded, size: 46, color: Color(0xFFC38CFF)),
+          const SizedBox(height: 8),
+          const Text(
+            '999 WELLNESS',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.3,
+            ),
+          ),
+          Text(
+            'INTELLIGENCE',
+            style: TextStyle(
+              color: const Color(0xFFD3BBFF).withOpacity(0.95),
+              fontSize: 9.5,
+              letterSpacing: 3.2,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'PROFESSIONAL MASSAGE\n& WELLNESS MARKETPLACE',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.88),
+              fontSize: 14,
+              height: 1.35,
+              letterSpacing: 0.8,
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Row(
+      children: [
+        const Icon(Icons.spa_rounded, size: 56, color: Color(0xFFC38CFF)),
+        const SizedBox(width: 14),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '999 WELLNESS',
+              style: TextStyle(
+                fontSize: 34,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.0,
+              ),
+            ),
+            Text(
+              'INTELLIGENCE',
+              style: TextStyle(
+                color: const Color(0xFFD3BBFF).withOpacity(0.95),
+                fontSize: 15,
+                letterSpacing: 7,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(width: 20),
+        Container(width: 1, height: 52, color: Colors.white.withOpacity(0.24)),
+        const SizedBox(width: 20),
+        Expanded(
+          child: Text(
+            'PROFESSIONAL MASSAGE\n& WELLNESS MARKETPLACE',
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.9),
+              fontSize: 18,
+              height: 1.35,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _FeatureRow extends StatelessWidget {
+  const _FeatureRow({required this.isMobile});
+
+  final bool isMobile;
+
+  @override
+  Widget build(BuildContext context) {
+    final items = [
+      (
+        Icons.lock_outline_rounded,
+        'SECURE & PRIVATE',
+        'Your information\nis protected',
+      ),
+      (
+        Icons.spa_outlined,
+        'PROFESSIONAL VERIFIED',
+        'Experienced wellness\nproviders',
+      ),
+      (
+        Icons.calendar_month_outlined,
+        'EASY ONLINE BOOKING',
+        'Book anytime,\nanywhere',
+      ),
+      (
+        Icons.favorite_border_rounded,
+        'WELLNESS YOUR WAY',
+        'Relax. Reconnect.\nFeel your best.',
+      ),
+    ];
+
+    if (isMobile) {
+      return Column(
+        children: items
+            .map(
+              (item) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _FeatureTile(
+                  icon: item.$1,
+                  title: item.$2,
+                  subtitle: item.$3,
+                ),
+              ),
+            )
+            .toList(),
+      );
+    }
+
+    return Row(
+      children: items
+          .map(
+            (item) => Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: _FeatureTile(
+                  icon: item.$1,
+                  title: item.$2,
+                  subtitle: item.$3,
+                ),
+              ),
+            ),
+          )
+          .toList(),
+    );
+  }
+}
+
+class _FeatureTile extends StatelessWidget {
+  const _FeatureTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return _GlassPanel(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: const Color(0xFF9D65FF).withOpacity(0.18),
+              border: Border.all(
+                color: const Color(0xFFC8A8FF).withOpacity(0.5),
+              ),
+            ),
+            child: Icon(icon, color: const Color(0xFFE4D5FF), size: 22),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 12,
+                    height: 1.35,
+                    color: Colors.white.withOpacity(0.72),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RoleCard extends StatelessWidget {
+  const _RoleCard({
+    required this.title,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String title;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final activeColor = const Color(0xFF9A62FF);
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          color: selected ? activeColor.withOpacity(0.34) : Colors.transparent,
+          border: Border.all(
+            color: selected
+                ? activeColor.withOpacity(0.9)
+                : Colors.white.withOpacity(0.15),
+          ),
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: activeColor.withOpacity(0.18),
+                    blurRadius: 20,
+                    spreadRadius: 0.5,
+                  ),
+                ]
+              : [],
+        ),
+        child: Column(
+          children: [
+            Icon(
+              icon,
+              color: selected ? Colors.white : Colors.white.withOpacity(0.72),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                color: selected ? Colors.white : Colors.white.withOpacity(0.82),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GlassPanel extends StatelessWidget {
+  const _GlassPanel({required this.child, required this.padding});
+
+  final Widget child;
+  final EdgeInsets padding;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(28),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+        child: Container(
+          padding: padding,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(28),
+            color: const Color(0xFF140D1E).withOpacity(0.80),
+            border: Border.all(
+              color: const Color(0xFFB88DFF).withOpacity(0.24),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.35),
+                blurRadius: 36,
+                offset: const Offset(0, 18),
+              ),
+            ],
+          ),
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
+class _BackgroundLayer extends StatelessWidget {
+  const _BackgroundLayer();
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final mobile = constraints.maxWidth < 700;
+
+        if (!mobile) {
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              Container(color: const Color(0xFF08050C)),
+              Image.asset(
+                'assets/login_background.png',
+                fit: BoxFit.cover,
+                alignment: Alignment.center,
+                filterQuality: FilterQuality.high,
+              ),
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.black.withValues(alpha: 0.05),
+                      const Color(0xFF100817).withValues(alpha: 0.10),
+                      Colors.black.withValues(alpha: 0.24),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          );
+        }
+
+        // MOBILE:
+        // Keep the entire width of the original landscape image visible.
+        // This preserves BOTH massage scenes instead of cropping them away.
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            Container(color: const Color(0xFF08050C)),
+
+            Align(
+              alignment: Alignment.topCenter,
+              child: SizedBox(
+                width: constraints.maxWidth,
+                child: Image.asset(
+                  'assets/login_background.png',
+                  width: constraints.maxWidth,
+                  fit: BoxFit.fitWidth,
+                  alignment: Alignment.topCenter,
+                  filterQuality: FilterQuality.high,
+                ),
+              ),
+            ),
+
+            // Darken the very top slightly so branding remains readable.
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 110,
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.black.withValues(alpha: 0.38),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+            // Smoothly fade the photo into the login area.
+            Positioned(
+              top: 215,
+              left: 0,
+              right: 0,
+              height: 275,
+              child: IgnorePointer(
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.transparent,
+                        const Color(0xFF09060F).withValues(alpha: 0.56),
+                        const Color(0xFF09060F).withValues(alpha: 0.94),
+                        const Color(0xFF09060F),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+            // Continue the same dark background down the page.
+            Positioned(
+              top: 470,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: Container(color: const Color(0xFF09060F)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class CustomerHomeScreen extends StatelessWidget {
+  const CustomerHomeScreen({super.key, required this.name});
+
+  final String name;
+
+  void _openPage(
+    BuildContext context,
+    String title,
+    IconData icon, {
+    String? subtitle,
+  }) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => _CustomerFeatureScreen(
+          title: title,
+          icon: icon,
+          subtitle: subtitle,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _signOut(BuildContext context) async {
+    await Supabase.instance.client.auth.signOut();
+
+    if (!context.mounted) return;
+
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (route) => false,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const bg = Color(0xFF07050D);
+    const panel = Color(0xFF151021);
+    const purple = Color(0xFF9B5CFF);
+    const lightPurple = Color(0xFFC9A7FF);
+
+    return Scaffold(
+      backgroundColor: bg,
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF0D0915),
+        elevation: 0,
+        titleSpacing: 22,
+        title: const Row(
+          children: [
+            Icon(Icons.spa_rounded, color: purple, size: 28),
+            SizedBox(width: 10),
+            Text(
+              '999 WELLNESS',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.0,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          IconButton(
+            tooltip: 'Notifications',
+            onPressed: () => _openPage(
+              context,
+              'Notifications',
+              Icons.notifications_none_rounded,
+            ),
+            icon: const Icon(Icons.notifications_none_rounded),
+          ),
+          IconButton(
+            tooltip: 'Messages',
+            onPressed: () => _openPage(
+              context,
+              'Messages',
+              Icons.chat_bubble_outline_rounded,
+            ),
+            icon: const Icon(Icons.chat_bubble_outline_rounded),
+          ),
+          const SizedBox(width: 4),
+          PopupMenuButton<String>(
+            color: const Color(0xFF181121),
+            icon: const CircleAvatar(
+              radius: 17,
+              backgroundColor: Color(0xFF2A1744),
+              child: Icon(Icons.person_rounded, color: lightPurple, size: 20),
+            ),
+            onSelected: (value) {
+              if (value == 'account') {
+                _openPage(context, 'My Account', Icons.person_outline_rounded);
+              } else if (value == 'signout') {
+                _signOut(context);
+              }
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'account', child: Text('My Account')),
+              PopupMenuItem(value: 'signout', child: Text('Sign Out')),
+            ],
+          ),
+          const SizedBox(width: 12),
+        ],
+      ),
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final wide = constraints.maxWidth >= 900;
+
+            return SingleChildScrollView(
+              padding: EdgeInsets.symmetric(
+                horizontal: wide ? 28 : 16,
+                vertical: 20,
+              ),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 1380),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _HeroWelcomeCard(name: name),
+                      const SizedBox(height: 16),
+
+                      _AdvancedSearchPanel(
+                        onSearch: () => _openPage(
+                          context,
+                          'Find Wellness Providers',
+                          Icons.manage_search_rounded,
+                          subtitle: 'Search providers by location, specialty, gender, and service type.',
+                        ),
+                      ),
+
+                      const SizedBox(height: 28),
+
+                      const _SectionTitle(
+                        title: 'QUICK ACTIONS',
+                        trailing: 'View all',
+                      ),
+                      const SizedBox(height: 12),
+
+                      LayoutBuilder(
+                        builder: (context, box) {
+                          final columns = box.maxWidth >= 1050
+                              ? 4
+                              : box.maxWidth >= 650
+                              ? 2
+                              : 1;
+
+                          final spacing = 12.0;
+                          final width =
+                              (box.maxWidth - spacing * (columns - 1)) /
+                              columns;
+
+                          return Wrap(
+                            spacing: spacing,
+                            runSpacing: spacing,
+                            children: [
+                              _QuickActionCard(
+                                width: width,
+                                icon: Icons.manage_search_rounded,
+                                title: 'Find Wellness Providers',
+                                subtitle: 'Search professionals by location and specialty.',
+                                onTap: () => _openPage(
+                                  context,
+                                  'Find Wellness Providers',
+                                  Icons.manage_search_rounded,
+                                ),
+                              ),
+                              _QuickActionCard(
+                                width: width,
+                                icon: Icons.calendar_month_rounded,
+                                title: 'My Bookings',
+                                subtitle:
+                                    'View upcoming and previous appointments.',
+                                onTap: () => _openPage(
+                                  context,
+                                  'My Bookings',
+                                  Icons.calendar_month_rounded,
+                                ),
+                              ),
+                              _QuickActionCard(
+                                width: width,
+                                icon: Icons.favorite_outline_rounded,
+                                title: 'Saved Providers',
+                                subtitle: 'Keep your favorite wellness providers together.',
+                                onTap: () => _openPage(
+                                  context,
+                                  'Saved Providers',
+                                  Icons.favorite_outline_rounded,
+                                ),
+                              ),
+                              _QuickActionCard(
+                                width: width,
+                                icon: Icons.person_outline_rounded,
+                                title: 'My Account',
+                                subtitle: 'Manage your profile and account preferences.',
+                                onTap: () => _openPage(
+                                  context,
+                                  'My Account',
+                                  Icons.person_outline_rounded,
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+
+                      const SizedBox(height: 28),
+
+                      if (wide)
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              flex: 6,
+                              child: _FeaturedProvidersPanel(
+                                onProviderTap: (provider) => _openPage(
+                                  context,
+                                  provider,
+                                  Icons.spa_outlined,
+                                  subtitle: 'Provider profile and booking information.',
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              flex: 4,
+                              child: Column(
+                                children: [
+                                  _UpcomingBookingCard(
+                                    onTap: () => _openPage(
+                                      context,
+                                      'My Bookings',
+                                      Icons.calendar_month_rounded,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  _AiSmartMatchCard(
+                                    onTap: () => _openPage(
+                                      context,
+                                      'AI Smart Match',
+                                      Icons.auto_awesome_rounded,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        )
+                      else ...[
+                        _FeaturedProvidersPanel(
+                          onProviderTap: (provider) =>
+                              _openPage(context, provider, Icons.spa_outlined),
+                        ),
+                        const SizedBox(height: 16),
+                        _UpcomingBookingCard(
+                          onTap: () => _openPage(
+                            context,
+                            'My Bookings',
+                            Icons.calendar_month_rounded,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        _AiSmartMatchCard(
+                          onTap: () => _openPage(
+                            context,
+                            'AI Smart Match',
+                            Icons.auto_awesome_rounded,
+                          ),
+                        ),
+                      ],
+
+                      const SizedBox(height: 16),
+
+                      if (wide)
+                        Row(
+                          children: [
+                            const Expanded(child: _RewardsCard()),
+                            const SizedBox(width: 16),
+                            Expanded(child: _WellnessTipCard()),
+                          ],
+                        )
+                      else ...[
+                        const _RewardsCard(),
+                        const SizedBox(height: 16),
+                        _WellnessTipCard(),
+                      ],
+
+                      const SizedBox(height: 100),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: 0,
+        backgroundColor: const Color(0xFF100B18),
+        indicatorColor: purple.withValues(alpha: 0.26),
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        onDestinationSelected: (index) {
+          switch (index) {
+            case 1:
+              _openPage(
+                context,
+                'Find Wellness Providers',
+                Icons.search_rounded,
+              );
+              break;
+            case 2:
+              _openPage(context, 'My Bookings', Icons.calendar_month_rounded);
+              break;
+            case 3:
+              _openPage(
+                context,
+                'Saved Providers',
+                Icons.favorite_outline_rounded,
+              );
+              break;
+            case 4:
+              _openPage(context, 'My Account', Icons.person_outline_rounded);
+              break;
+          }
+        },
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home_rounded),
+            label: 'Home',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.search_rounded),
+            label: 'Search',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.calendar_month_outlined),
+            label: 'Bookings',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.favorite_outline_rounded),
+            label: 'Favorites',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.person_outline_rounded),
+            label: 'Profile',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeroWelcomeCard extends StatelessWidget {
+  const _HeroWelcomeCard({required this.name});
+
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(26),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(26),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF201038), Color(0xFF120A20), Color(0xFF0C0813)],
+        ),
+        border: Border.all(
+          color: const Color(0xFF9D65FF).withValues(alpha: 0.35),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF7B2CFF).withValues(alpha: 0.14),
+            blurRadius: 34,
+            spreadRadius: 2,
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            right: -20,
+            top: -18,
+            child: Icon(
+              Icons.spa_rounded,
+              size: 180,
+              color: const Color(0xFFB278FF).withValues(alpha: 0.07),
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 7,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF8A45F5).withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(99),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.auto_awesome_rounded,
+                      color: Color(0xFFD4BCFF),
+                      size: 16,
+                    ),
+                    SizedBox(width: 7),
+                    Text(
+                      'Welcome back',
+                      style: TextStyle(
+                        color: Color(0xFFE3D5FF),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+              Text(
+                'WELCOME, ${name.toUpperCase()}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 30,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const SizedBox(height: 7),
+              const Text(
+                'Your wellness journey starts here.',
+                style: TextStyle(color: Colors.white70, fontSize: 16),
+              ),
+              const SizedBox(height: 24),
+              const Wrap(
+                spacing: 28,
+                runSpacing: 14,
+                children: [
+                  _MiniStat(
+                    icon: Icons.calendar_month_outlined,
+                    value: '0',
+                    label: 'Bookings',
+                  ),
+                  _MiniStat(
+                    icon: Icons.favorite_border_rounded,
+                    value: '0',
+                    label: 'Favorites',
+                  ),
+                  _MiniStat(
+                    icon: Icons.stars_rounded,
+                    value: '0',
+                    label: 'Reward Points',
+                  ),
+                  _MiniStat(
+                    icon: Icons.workspace_premium_rounded,
+                    value: 'Member',
+                    label: '999 Wellness',
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniStat extends StatelessWidget {
+  const _MiniStat({
+    required this.icon,
+    required this.value,
+    required this.label,
+  });
+
+  final IconData icon;
+  final String value;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, color: const Color(0xFFB889FF), size: 22),
+        const SizedBox(width: 9),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              value,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+                fontSize: 15,
+              ),
+            ),
+            Text(
+              label,
+              style: const TextStyle(color: Colors.white54, fontSize: 12),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _AdvancedSearchPanel extends StatelessWidget {
+  const _AdvancedSearchPanel({required this.onSearch});
+
+  final VoidCallback onSearch;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFF13101C),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
+      ),
+      child: Wrap(
+        spacing: 10,
+        runSpacing: 10,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          const SizedBox(
+            width: 280,
+            child: Row(
+              children: [
+                CircleAvatar(
+                  backgroundColor: Color(0xFF54239B),
+                  child: Icon(Icons.manage_search_rounded, color: Colors.white),
+                ),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Find wellness providers',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      SizedBox(height: 3),
+                      Text(
+                        'Search by location, specialty or service',
+                        style: TextStyle(color: Colors.white54, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const _SearchChip(label: 'City'),
+          const _SearchChip(label: 'State'),
+          const _SearchChip(label: 'Specialty'),
+          const _SearchChip(label: 'Gender'),
+          const _SearchChip(label: 'Mobile / Studio'),
+          FilledButton.icon(
+            onPressed: onSearch,
+            icon: const Icon(Icons.auto_awesome_rounded),
+            label: const Text('Search'),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF7E35E8),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SearchChip extends StatelessWidget {
+  const _SearchChip({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 130,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1C1728),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(color: Colors.white70, fontSize: 13),
+            ),
+          ),
+          const Icon(
+            Icons.keyboard_arrow_down_rounded,
+            color: Colors.white54,
+            size: 18,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle({required this.title, this.trailing});
+
+  final String title;
+  final String? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 17,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 0.7,
+          ),
+        ),
+        const Spacer(),
+        if (trailing != null)
+          Text(
+            trailing!,
+            style: const TextStyle(color: Colors.white54, fontSize: 13),
+          ),
+      ],
+    );
+  }
+}
+
+class _QuickActionCard extends StatelessWidget {
+  const _QuickActionCard({
+    required this.width,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final double width;
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: width,
+      child: Material(
+        color: const Color(0xFF15101F),
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: const Color(0xFF9B61FF).withValues(alpha: 0.16),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF7035CB), Color(0xFF472080)],
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Icon(icon, color: Colors.white),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        subtitle,
+                        style: const TextStyle(
+                          color: Colors.white54,
+                          fontSize: 12,
+                          height: 1.25,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  color: Colors.white38,
+                  size: 16,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FeaturedProvidersPanel extends StatelessWidget {
+  const _FeaturedProvidersPanel({required this.onProviderTap});
+
+  final void Function(String provider) onProviderTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFF12101A),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const _SectionTitle(
+            title: 'FEATURED PROVIDERS',
+            trailing: 'View all',
+          ),
+          const SizedBox(height: 14),
+          LayoutBuilder(
+            builder: (context, box) {
+              final count = box.maxWidth >= 700 ? 3 : 1;
+              final width = count == 3 ? (box.maxWidth - 24) / 3 : box.maxWidth;
+
+              return Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  _ProviderCard(
+                    width: width,
+                    initials: 'AB',
+                    name: 'Aaliyah Brooks',
+                    specialty: 'Deep Tissue • Swedish',
+                    rating: '4.9',
+                    badge: 'Top Rated',
+                    onTap: () => onProviderTap('Aaliyah Brooks'),
+                  ),
+                  _ProviderCard(
+                    width: width,
+                    initials: 'MH',
+                    name: 'Marcus Hill',
+                    specialty: 'Sports Recovery • Stretch',
+                    rating: '4.9',
+                    badge: 'Top Rated',
+                    onTap: () => onProviderTap('Marcus Hill'),
+                  ),
+                  _ProviderCard(
+                    width: width,
+                    initials: 'JL',
+                    name: 'Jasmine Lee',
+                    specialty: 'Wellness • Relaxation',
+                    rating: '4.8',
+                    badge: 'Rising Star',
+                    onTap: () => onProviderTap('Jasmine Lee'),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProviderCard extends StatelessWidget {
+  const _ProviderCard({
+    required this.width,
+    required this.initials,
+    required this.name,
+    required this.specialty,
+    required this.rating,
+    required this.badge,
+    required this.onTap,
+  });
+
+  final double width;
+  final String initials;
+  final String name;
+  final String specialty;
+  final String rating;
+  final String badge;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: width,
+      child: Material(
+        color: const Color(0xFF1A1424),
+        borderRadius: BorderRadius.circular(18),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(18),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 9,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF7F3DE7).withValues(alpha: 0.26),
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                      child: Text(
+                        badge,
+                        style: const TextStyle(
+                          color: Color(0xFFD7C0FF),
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    const Spacer(),
+                    const Icon(
+                      Icons.favorite_border_rounded,
+                      color: Colors.white54,
+                      size: 20,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                CircleAvatar(
+                  radius: 34,
+                  backgroundColor: const Color(0xFF542D86),
+                  child: Text(
+                    initials,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  name,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  specialty,
+                  style: const TextStyle(color: Colors.white54, fontSize: 12),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.star_rounded,
+                      color: Color(0xFFFFCA61),
+                      size: 18,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      rating,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const Spacer(),
+                    const Text(
+                      'View Profile',
+                      style: TextStyle(
+                        color: Color(0xFFC9A7FF),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _UpcomingBookingCard extends StatelessWidget {
+  const _UpcomingBookingCard({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return _DashboardPanel(
+      title: 'UPCOMING BOOKING',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'No upcoming appointment yet',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 7),
+          const Text(
+            'Find a wellness provider and schedule your next session.',
+            style: TextStyle(color: Colors.white54, height: 1.4),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: onTap,
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF7130D6),
+                padding: const EdgeInsets.symmetric(vertical: 15),
+              ),
+              child: const Text('View My Bookings'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AiSmartMatchCard extends StatelessWidget {
+  const _AiSmartMatchCard({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return _DashboardPanel(
+      title: 'AI SMART MATCH',
+      trailing: 'NEW',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Let 999 Intelligence help match you with providers based on your preferences and wellness goals.',
+            style: TextStyle(color: Colors.white60, height: 1.45),
+          ),
+          const SizedBox(height: 15),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFF20152F),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Row(
+              children: [
+                CircleAvatar(
+                  backgroundColor: Color(0xFF60319B),
+                  child: Icon(Icons.auto_awesome_rounded, color: Colors.white),
+                ),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Smart Match is ready to learn your preferences.',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  color: Colors.white38,
+                  size: 15,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: onTap,
+              child: const Text('Start Smart Match'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RewardsCard extends StatelessWidget {
+  const _RewardsCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return _DashboardPanel(
+      title: 'WELLNESS REWARDS',
+      trailing: 'MEMBER',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(
+                Icons.workspace_premium_rounded,
+                color: Color(0xFFFFCE67),
+                size: 34,
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Earn rewards as you book and use 999 Wellness.',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(99),
+            child: const LinearProgressIndicator(
+              value: 0.05,
+              minHeight: 9,
+              backgroundColor: Color(0xFF2A2431),
+              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF9D62FF)),
+            ),
+          ),
+          const SizedBox(height: 9),
+          const Text(
+            '0 points • Start booking to earn rewards',
+            style: TextStyle(color: Colors.white54, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WellnessTipCard extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return _DashboardPanel(
+      title: 'DAILY WELLNESS TIP',
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF25143A), Color(0xFF32105B)],
+          ),
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: const Row(
+          children: [
+            Icon(Icons.spa_rounded, color: Color(0xFFC49BFF), size: 46),
+            SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                'Small daily choices create lasting changes.',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  height: 1.4,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DashboardPanel extends StatelessWidget {
+  const _DashboardPanel({
+    required this.title,
+    required this.child,
+    this.trailing,
+  });
+
+  final String title;
+  final Widget child;
+  final String? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFF12101A),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const Spacer(),
+              if (trailing != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF7E3CDB).withValues(alpha: 0.22),
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                  child: Text(
+                    trailing!,
+                    style: const TextStyle(
+                      color: Color(0xFFD4BDFF),
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 15),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+class _CustomerFeatureScreen extends StatelessWidget {
+  const _CustomerFeatureScreen({
+    required this.title,
+    required this.icon,
+    this.subtitle,
+  });
+
+  final String title;
+  final IconData icon;
+  final String? subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF08060D),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF100B18),
+        title: Text(title),
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 620),
+            padding: const EdgeInsets.all(30),
+            decoration: BoxDecoration(
+              color: const Color(0xFF171020),
+              borderRadius: BorderRadius.circular(26),
+              border: Border.all(
+                color: const Color(0xFF9A61FF).withValues(alpha: 0.25),
+              ),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 82,
+                  height: 82,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF8845EE), Color(0xFF52258B)],
+                    ),
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  child: Icon(icon, color: Colors.white, size: 40),
+                ),
+                const SizedBox(height: 22),
+                Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 27,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  subtitle ?? 'This section is now connected and ready for the next development phase.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white60,
+                    fontSize: 15,
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 22),
+                FilledButton.icon(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.arrow_back_rounded),
+                  label: const Text('Back to Dashboard'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF7936DD),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 22,
+                      vertical: 15,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

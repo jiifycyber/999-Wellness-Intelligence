@@ -1697,17 +1697,12 @@ class CustomerHomeScreen extends StatelessWidget {
                                             Expanded(
                                               flex: 12,
                                               child: _V2FeaturedProvidersPanel(
-                                                onProviderTap: (provider) {
-                                                  Navigator.of(context).push(
-                                                    MaterialPageRoute(
-                                                      builder: (_) =>
-                                                          _WellnessProviderProfileScreen(
-                                                            providerName:
-                                                                provider,
-                                                          ),
+                                                onProviderTap: (provider) =>
+                                                    _openPage(
+                                                      context,
+                                                      provider,
+                                                      Icons.spa_outlined,
                                                     ),
-                                                  );
-                                                },
                                               ),
                                             ),
                                             const SizedBox(width: 14),
@@ -1744,16 +1739,12 @@ class CustomerHomeScreen extends StatelessWidget {
                                         ),
                                         const SizedBox(height: 14),
                                         _V2FeaturedProvidersPanel(
-                                          onProviderTap: (provider) {
-                                            Navigator.of(context).push(
-                                              MaterialPageRoute(
-                                                builder: (_) =>
-                                                    _WellnessProviderProfileScreen(
-                                                      providerName: provider,
-                                                    ),
+                                          onProviderTap: (provider) =>
+                                              _openPage(
+                                                context,
+                                                provider,
+                                                Icons.spa_outlined,
                                               ),
-                                            );
-                                          },
                                         ),
                                         const SizedBox(height: 14),
                                         const _V2RewardsPanel(),
@@ -3359,7 +3350,7 @@ class _V2FeaturedProvidersPanel extends StatelessWidget {
         .from('provider_profiles')
         .select(
           'id, full_name, professional_name, business_name, '
-          'service_area, rating, available_now, profile_photo_url',
+          'service_area, rating, available_now',
         )
         .order('professional_name')
         .limit(3);
@@ -3456,7 +3447,6 @@ class _V2FeaturedProvidersPanel extends StatelessWidget {
 
                     return _V2ProviderRow(
                       initials: _initials(name),
-                      photoUrl: provider['profile_photo_url']?.toString() ?? '',
                       name: name,
                       specialty: business.isNotEmpty
                           ? business
@@ -3486,7 +3476,6 @@ class _V2FeaturedProvidersPanel extends StatelessWidget {
 class _V2ProviderRow extends StatelessWidget {
   const _V2ProviderRow({
     required this.initials,
-    required this.photoUrl,
     required this.name,
     required this.specialty,
     required this.location,
@@ -3495,7 +3484,6 @@ class _V2ProviderRow extends StatelessWidget {
   });
 
   final String initials;
-  final String photoUrl;
   final String name;
   final String specialty;
   final String location;
@@ -3528,36 +3516,16 @@ class _V2ProviderRow extends StatelessWidget {
                   gradient: const LinearGradient(
                     colors: [Color(0xFF7143B6), Color(0xFF232D58)],
                   ),
-                  border: Border.all(
-                    color: const Color(0xFF8E72FF).withValues(alpha: .45),
+                ),
+                child: Center(
+                  child: Text(
+                    initials,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                 ),
-                clipBehavior: Clip.antiAlias,
-                child: photoUrl.trim().isNotEmpty
-                    ? Image.network(
-                        photoUrl.trim(),
-                        width: 43,
-                        height: 43,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Center(
-                          child: Text(
-                            initials,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                        ),
-                      )
-                    : Center(
-                        child: Text(
-                          initials,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                      ),
               ),
               const SizedBox(width: 11),
               Expanded(
@@ -5473,7 +5441,7 @@ class _CustomerV3PageHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: desktop ? 215 : 190,
+      height: desktop ? 215 : 162,
       margin: EdgeInsets.fromLTRB(desktop ? 22 : 9, 14, desktop ? 22 : 9, 12),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(25),
@@ -10394,68 +10362,7 @@ class _CustomerBookingFlowScreenState
   String _service = 'Deep Tissue';
   String _day = 'Today';
   String _time = '4:30 PM';
-  String _preferredContactMethod = 'Phone';
   bool _submitting = false;
-
-  final _customerNameController = TextEditingController();
-  final _customerPhoneController = TextEditingController();
-  final _customerEmailController = TextEditingController();
-  final _serviceAddressController = TextEditingController();
-  final _accessInstructionsController = TextEditingController();
-  final _bookingNotesController = TextEditingController();
-
-  @override
-  void initState() {
-    super.initState();
-    _loadCustomerContact();
-  }
-
-  Future<void> _loadCustomerContact() async {
-    final user = Supabase.instance.client.auth.currentUser;
-    if (user == null) return;
-
-    try {
-      final profile = await Supabase.instance.client
-          .from('profiles')
-          .select('full_name, email, phone')
-          .eq('id', user.id)
-          .maybeSingle();
-
-      _customerNameController.text =
-          profile?['full_name']?.toString() ??
-          user.userMetadata?['full_name']?.toString() ??
-          '';
-
-      _customerPhoneController.text =
-          profile?['phone']?.toString() ??
-          user.userMetadata?['phone']?.toString() ??
-          '';
-
-      _customerEmailController.text =
-          profile?['email']?.toString() ?? user.email ?? '';
-    } catch (_) {
-      _customerNameController.text =
-          user.userMetadata?['full_name']?.toString() ?? '';
-      _customerPhoneController.text =
-          user.userMetadata?['phone']?.toString() ?? '';
-      _customerEmailController.text = user.email ?? '';
-    }
-
-    if (mounted) {
-      setState(() {});
-    }
-  }
-
-  @override
-  void dispose() {
-    _customerNameController.dispose();
-    _customerPhoneController.dispose();
-    _customerEmailController.dispose();
-    _serviceAddressController.dispose();
-    _accessInstructionsController.dispose();
-    _bookingNotesController.dispose();
-    super.dispose();
-  }
 
   Future<void> _submitBooking() async {
     if (_submitting) return;
@@ -10467,43 +10374,6 @@ class _CustomerBookingFlowScreenState
         const SnackBar(
           content: Text('Please sign in before creating a booking.'),
         ),
-      );
-      return;
-    }
-
-    final customerName = _customerNameController.text.trim();
-    final customerPhone = _customerPhoneController.text.trim();
-    final customerEmail = _customerEmailController.text.trim();
-    final serviceAddress = _serviceAddressController.text.trim();
-    final accessInstructions = _accessInstructionsController.text.trim();
-    final bookingNotes = _bookingNotesController.text.trim();
-
-    if (customerName.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter your full name.')),
-      );
-      return;
-    }
-
-    if (customerPhone.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter your phone number.')),
-      );
-      return;
-    }
-
-    if (customerEmail.isEmpty ||
-        !customerEmail.contains('@') ||
-        !customerEmail.contains('.')) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid email address.')),
-      );
-      return;
-    }
-
-    if (serviceAddress.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter the service address.')),
       );
       return;
     }
@@ -10529,15 +10399,6 @@ class _CustomerBookingFlowScreenState
         'booking_day': _day,
         'booking_time': _time,
         'service_type': 'Mobile Service',
-        'service_address': serviceAddress,
-        'customer_name': customerName,
-        'customer_phone': customerPhone,
-        'customer_email': customerEmail,
-        'preferred_contact_method': _preferredContactMethod,
-        'access_instructions': accessInstructions.isEmpty
-            ? null
-            : accessInstructions,
-        'booking_notes': bookingNotes.isEmpty ? null : bookingNotes,
         'status': 'Requested',
         'payment_status': 'Pending',
       });
@@ -10677,132 +10538,6 @@ class _CustomerBookingFlowScreenState
                         },
                       ),
                   ],
-                ),
-
-                const SizedBox(height: 26),
-
-                const _BookingSectionTitle(
-                  number: '04',
-                  title: 'Customer and Location',
-                ),
-                const SizedBox(height: 12),
-
-                Container(
-                  padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF121423),
-                    borderRadius: BorderRadius.circular(22),
-                    border: Border.all(
-                      color: const Color(0xFF7A5CFF).withValues(alpha: .25),
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const Text(
-                        'APPOINTMENT CONTACT INFORMATION',
-                        style: TextStyle(
-                          color: Color(0xFFB8C8FF),
-                          fontSize: 11,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: .8,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      TextField(
-                        controller: _customerNameController,
-                        textCapitalization: TextCapitalization.words,
-                        decoration: const InputDecoration(
-                          labelText: 'Full Name *',
-                          prefixIcon: Icon(Icons.person_outline_rounded),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-
-                      TextField(
-                        controller: _customerPhoneController,
-                        keyboardType: TextInputType.phone,
-                        decoration: const InputDecoration(
-                          labelText: 'Phone Number *',
-                          prefixIcon: Icon(Icons.phone_outlined),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-
-                      TextField(
-                        controller: _customerEmailController,
-                        keyboardType: TextInputType.emailAddress,
-                        decoration: const InputDecoration(
-                          labelText: 'Email Address *',
-                          prefixIcon: Icon(Icons.email_outlined),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-
-                      TextField(
-                        controller: _serviceAddressController,
-                        keyboardType: TextInputType.streetAddress,
-                        textCapitalization: TextCapitalization.words,
-                        decoration: const InputDecoration(
-                          labelText: 'Service Address *',
-                          hintText: 'Street, city, state, ZIP',
-                          prefixIcon: Icon(Icons.location_on_outlined),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      const Text(
-                        'PREFERRED CONTACT METHOD',
-                        style: TextStyle(
-                          color: Colors.white54,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          for (final option in const ['Phone', 'Text', 'Email'])
-                            ChoiceChip(
-                              label: Text(option),
-                              selected: _preferredContactMethod == option,
-                              onSelected: (_) {
-                                setState(() {
-                                  _preferredContactMethod = option;
-                                });
-                              },
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 14),
-
-                      TextField(
-                        controller: _accessInstructionsController,
-                        maxLines: 2,
-                        decoration: const InputDecoration(
-                          labelText: 'Access Instructions',
-                          hintText:
-                              'Gate code, apartment, parking, entry details',
-                          prefixIcon: Icon(Icons.key_outlined),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-
-                      TextField(
-                        controller: _bookingNotesController,
-                        maxLines: 3,
-                        decoration: const InputDecoration(
-                          labelText: 'Appointment Notes',
-                          hintText: 'Anything the provider should know before arrival',
-                          prefixIcon: Icon(Icons.notes_rounded),
-                        ),
-                      ),
-                    ],
-                  ),
                 ),
 
                 const SizedBox(height: 26),
@@ -13635,7 +13370,7 @@ class _CustomerAiSmartMatchScreenState
           .from('provider_profiles')
           .select(
             'id, full_name, professional_name, business_name, bio, '
-            'service_area, available_now, rating, review_count, profile_photo_url',
+            'service_area, available_now, rating, review_count',
           )
           .order('professional_name');
 
@@ -13722,7 +13457,6 @@ class _CustomerAiSmartMatchScreenState
               ? businessName
               : 'Wellness Provider',
           'rating': rating > 0 ? rating.toStringAsFixed(1) : 'NEW',
-          'profile_photo_url': profile['profile_photo_url']?.toString() ?? '',
           'match': 'LIVE',
           'reason': reasonParts.join(' '),
           'color': const Color(0xFF5EDCFF),
@@ -14114,79 +13848,19 @@ class _SmartMatchResultCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          SizedBox(
-            width: 51,
-            height: 51,
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Container(
-                  width: 47,
-                  height: 47,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: color.withValues(alpha: .13),
-                    border: Border.all(
-                      color: color.withValues(alpha: .65),
-                      width: 2,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: color.withValues(alpha: .18),
-                        blurRadius: 12,
-                        spreadRadius: 1,
-                      ),
-                    ],
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child:
-                      (provider['profile_photo_url']
-                              ?.toString()
-                              .trim()
-                              .isNotEmpty ??
-                          false)
-                      ? Image.network(
-                          provider['profile_photo_url'].toString().trim(),
-                          width: 47,
-                          height: 47,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Icon(
-                            Icons.person_rounded,
-                            color: color,
-                            size: 25,
-                          ),
-                        )
-                      : Icon(Icons.person_rounded, color: color, size: 25),
-                ),
-                Positioned(
-                  right: 0,
-                  bottom: 0,
-                  child: Container(
-                    constraints: const BoxConstraints(
-                      minWidth: 19,
-                      minHeight: 19,
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 5,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF111827),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: color.withValues(alpha: .85)),
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      '#$rank',
-                      style: TextStyle(
-                        color: color,
-                        fontSize: 7,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+          Container(
+            width: 47,
+            height: 47,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: color.withValues(alpha: .13),
+              border: Border.all(color: color.withValues(alpha: .45)),
+            ),
+            child: Center(
+              child: Text(
+                '#$rank',
+                style: TextStyle(color: color, fontWeight: FontWeight.w900),
+              ),
             ),
           ),
 
@@ -15963,8 +15637,6 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
           .select(
             'id, customer_id, provider_id, provider_name, service_name, '
             'booking_day, booking_time, service_type, service_address, '
-            'customer_name, customer_phone, customer_email, '
-            'preferred_contact_method, access_instructions, booking_notes, '
             'status, payment_status, eta_minutes, price, created_at, updated_at',
           )
           .eq('provider_id', user.id)
@@ -16447,14 +16119,6 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
     final time = booking['booking_time']?.toString() ?? '';
     final serviceType = booking['service_type']?.toString() ?? '';
     final address = booking['service_address']?.toString();
-    final customerName = booking['customer_name']?.toString().trim() ?? '';
-    final customerPhone = booking['customer_phone']?.toString().trim() ?? '';
-    final customerEmail = booking['customer_email']?.toString().trim() ?? '';
-    final preferredContact =
-        booking['preferred_contact_method']?.toString().trim() ?? '';
-    final accessInstructions =
-        booking['access_instructions']?.toString().trim() ?? '';
-    final bookingNotes = booking['booking_notes']?.toString().trim() ?? '';
     final paymentStatus = booking['payment_status']?.toString() ?? 'Pending';
     final eta = booking['eta_minutes'];
     final price = booking['price'];
@@ -16593,116 +16257,13 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
               style: const TextStyle(color: Colors.white54, fontSize: 12),
             ),
           ],
-          const SizedBox(height: 14),
-
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: const Color(0xFF090E19),
-              borderRadius: BorderRadius.circular(15),
-              border: Border.all(
-                color: const Color(0xFF39D6FF).withValues(alpha: .20),
-              ),
+          if (address != null && address.trim().isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              address,
+              style: const TextStyle(color: Colors.white54, fontSize: 12),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Row(
-                  children: [
-                    Icon(
-                      Icons.contact_phone_outlined,
-                      color: Color(0xFF39D6FF),
-                      size: 17,
-                    ),
-                    SizedBox(width: 7),
-                    Text(
-                      'CUSTOMER CONTACT',
-                      style: TextStyle(
-                        color: Color(0xFF39D6FF),
-                        fontSize: 10,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: .8,
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 10),
-
-                if (customerName.isNotEmpty)
-                  Text(
-                    customerName,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-
-                if (customerPhone.isNotEmpty) ...[
-                  const SizedBox(height: 7),
-                  Text(
-                    'Phone: $customerPhone',
-                    style: const TextStyle(color: Colors.white70, fontSize: 12),
-                  ),
-                ],
-
-                if (customerEmail.isNotEmpty) ...[
-                  const SizedBox(height: 7),
-                  Text(
-                    'Email: $customerEmail',
-                    style: const TextStyle(color: Colors.white70, fontSize: 12),
-                  ),
-                ],
-
-                if (preferredContact.isNotEmpty) ...[
-                  const SizedBox(height: 7),
-                  Text(
-                    'Preferred contact: $preferredContact',
-                    style: const TextStyle(
-                      color: Color(0xFFB8C8FF),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-
-                if (address != null && address.trim().isNotEmpty) ...[
-                  const SizedBox(height: 7),
-                  Text(
-                    'Address: $address',
-                    style: const TextStyle(color: Colors.white70, fontSize: 12),
-                  ),
-                ],
-
-                if (accessInstructions.isNotEmpty) ...[
-                  const SizedBox(height: 7),
-                  Text(
-                    'Access: $accessInstructions',
-                    style: const TextStyle(color: Colors.white54, fontSize: 12),
-                  ),
-                ],
-
-                if (bookingNotes.isNotEmpty) ...[
-                  const SizedBox(height: 7),
-                  Text(
-                    'Notes: $bookingNotes',
-                    style: const TextStyle(color: Colors.white54, fontSize: 12),
-                  ),
-                ],
-
-                if (customerName.isEmpty &&
-                    customerPhone.isEmpty &&
-                    customerEmail.isEmpty &&
-                    (address == null || address.trim().isEmpty))
-                  const Text(
-                    'No customer contact information on this older booking.',
-                    style: TextStyle(color: Colors.white38, fontSize: 11),
-                  ),
-              ],
-            ),
-          ),
-
+          ],
           if (eta != null) ...[
             const SizedBox(height: 6),
             Text(

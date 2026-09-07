@@ -3,8 +3,6 @@ import 'customer_provider_chat.dart';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:video_player/video_player.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'supabase_config.dart';
@@ -1697,17 +1695,12 @@ class CustomerHomeScreen extends StatelessWidget {
                                             Expanded(
                                               flex: 12,
                                               child: _V2FeaturedProvidersPanel(
-                                                onProviderTap: (provider) {
-                                                  Navigator.of(context).push(
-                                                    MaterialPageRoute(
-                                                      builder: (_) =>
-                                                          _WellnessProviderProfileScreen(
-                                                            providerName:
-                                                                provider,
-                                                          ),
+                                                onProviderTap: (provider) =>
+                                                    _openPage(
+                                                      context,
+                                                      provider,
+                                                      Icons.spa_outlined,
                                                     ),
-                                                  );
-                                                },
                                               ),
                                             ),
                                             const SizedBox(width: 14),
@@ -1744,16 +1737,12 @@ class CustomerHomeScreen extends StatelessWidget {
                                         ),
                                         const SizedBox(height: 14),
                                         _V2FeaturedProvidersPanel(
-                                          onProviderTap: (provider) {
-                                            Navigator.of(context).push(
-                                              MaterialPageRoute(
-                                                builder: (_) =>
-                                                    _WellnessProviderProfileScreen(
-                                                      providerName: provider,
-                                                    ),
+                                          onProviderTap: (provider) =>
+                                              _openPage(
+                                                context,
+                                                provider,
+                                                Icons.spa_outlined,
                                               ),
-                                            );
-                                          },
                                         ),
                                         const SizedBox(height: 14),
                                         const _V2RewardsPanel(),
@@ -3359,7 +3348,7 @@ class _V2FeaturedProvidersPanel extends StatelessWidget {
         .from('provider_profiles')
         .select(
           'id, full_name, professional_name, business_name, '
-          'service_area, rating, available_now, profile_photo_url',
+          'service_area, rating, available_now',
         )
         .order('professional_name')
         .limit(3);
@@ -3456,7 +3445,6 @@ class _V2FeaturedProvidersPanel extends StatelessWidget {
 
                     return _V2ProviderRow(
                       initials: _initials(name),
-                      photoUrl: provider['profile_photo_url']?.toString() ?? '',
                       name: name,
                       specialty: business.isNotEmpty
                           ? business
@@ -3486,7 +3474,6 @@ class _V2FeaturedProvidersPanel extends StatelessWidget {
 class _V2ProviderRow extends StatelessWidget {
   const _V2ProviderRow({
     required this.initials,
-    required this.photoUrl,
     required this.name,
     required this.specialty,
     required this.location,
@@ -3495,7 +3482,6 @@ class _V2ProviderRow extends StatelessWidget {
   });
 
   final String initials;
-  final String photoUrl;
   final String name;
   final String specialty;
   final String location;
@@ -3528,36 +3514,16 @@ class _V2ProviderRow extends StatelessWidget {
                   gradient: const LinearGradient(
                     colors: [Color(0xFF7143B6), Color(0xFF232D58)],
                   ),
-                  border: Border.all(
-                    color: const Color(0xFF8E72FF).withValues(alpha: .45),
+                ),
+                child: Center(
+                  child: Text(
+                    initials,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                 ),
-                clipBehavior: Clip.antiAlias,
-                child: photoUrl.trim().isNotEmpty
-                    ? Image.network(
-                        photoUrl.trim(),
-                        width: 43,
-                        height: 43,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Center(
-                          child: Text(
-                            initials,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                        ),
-                      )
-                    : Center(
-                        child: Text(
-                          initials,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                      ),
               ),
               const SizedBox(width: 11),
               Expanded(
@@ -5473,7 +5439,7 @@ class _CustomerV3PageHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: desktop ? 215 : 190,
+      height: desktop ? 215 : 162,
       margin: EdgeInsets.fromLTRB(desktop ? 22 : 9, 14, desktop ? 22 : 9, 12),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(25),
@@ -7909,7 +7875,6 @@ class _V4SearchProviderCard extends StatelessWidget {
     final distance = provider['distance'].toString();
     final price = provider['price'].toString();
     final badge = provider['badge'].toString();
-    final photoUrl = provider['profile_photo_url']?.toString() ?? '';
 
     final services = List<String>.from(provider['services'] as List<dynamic>);
 
@@ -7972,11 +7937,31 @@ class _V4SearchProviderCard extends StatelessWidget {
 
             Row(
               children: [
-                _LiveProviderAvatar(
-                  photoUrl: photoUrl,
-                  fallbackText: initials,
-                  size: 62,
-                  fontSize: 18,
+                Container(
+                  width: 62,
+                  height: 62,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF734DFF), Color(0xFFAE50FF)],
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF7954FF).withValues(alpha: .25),
+                        blurRadius: 18,
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: Text(
+                      initials,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
                 ),
 
                 const SizedBox(width: 13),
@@ -8952,78 +8937,6 @@ class _ProviderMarketplaceCard extends StatelessWidget {
   }
 }
 
-class _LiveProviderAvatar extends StatelessWidget {
-  const _LiveProviderAvatar({
-    required this.photoUrl,
-    required this.fallbackText,
-    required this.size,
-    this.fontSize = 18,
-  });
-
-  final String photoUrl;
-  final String fallbackText;
-  final double size;
-  final double fontSize;
-
-  @override
-  Widget build(BuildContext context) {
-    final cleanUrl = photoUrl.trim();
-
-    Widget fallback() {
-      return Container(
-        width: size,
-        height: size,
-        alignment: Alignment.center,
-        decoration: const BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: LinearGradient(
-            colors: [Color(0xFF734DFF), Color(0xFFAE50FF)],
-          ),
-        ),
-        child: Text(
-          fallbackText,
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: fontSize,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-      );
-    }
-
-    if (cleanUrl.isEmpty) {
-      return fallback();
-    }
-
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(
-          color: const Color(0xFFA869FF).withValues(alpha: .65),
-          width: 2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF7B4CFF).withValues(alpha: .22),
-            blurRadius: 18,
-          ),
-        ],
-      ),
-      child: ClipOval(
-        child: Image.network(
-          cleanUrl,
-          width: size,
-          height: size,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => fallback(),
-        ),
-      ),
-    );
-  }
-}
-
 class _WellnessTag extends StatelessWidget {
   const _WellnessTag({required this.text});
 
@@ -9054,47 +8967,6 @@ class _WellnessProviderProfileScreen extends StatelessWidget {
 
   final String providerName;
 
-  Future<String> _loadProviderProfilePhoto() async {
-    try {
-      final rows = await Supabase.instance.client
-          .from('provider_profiles')
-          .select('full_name, professional_name, profile_photo_url');
-
-      for (final raw in rows as List) {
-        final row = Map<String, dynamic>.from(raw as Map);
-
-        final professionalName =
-            row['professional_name']?.toString().trim() ?? '';
-        final fullName = row['full_name']?.toString().trim() ?? '';
-
-        if (professionalName.toLowerCase() ==
-                providerName.trim().toLowerCase() ||
-            fullName.toLowerCase() == providerName.trim().toLowerCase()) {
-          return row['profile_photo_url']?.toString() ?? '';
-        }
-      }
-    } catch (_) {}
-
-    return '';
-  }
-
-  String get _providerInitials {
-    final parts = providerName
-        .trim()
-        .split(RegExp(r'\s+'))
-        .where((part) => part.isNotEmpty)
-        .toList();
-
-    if (parts.isEmpty) return 'WP';
-
-    if (parts.length == 1) {
-      final value = parts.first.toUpperCase();
-      return value.length >= 2 ? value.substring(0, 2) : value;
-    }
-
-    return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
-  }
-
   @override
   Widget build(BuildContext context) {
     return _CustomerPageShell(
@@ -9117,16 +8989,14 @@ class _WellnessProviderProfileScreen extends StatelessWidget {
                   ),
                   child: Column(
                     children: [
-                      FutureBuilder<String>(
-                        future: _loadProviderProfilePhoto(),
-                        builder: (context, snapshot) {
-                          return _LiveProviderAvatar(
-                            photoUrl: snapshot.data ?? '',
-                            fallbackText: _providerInitials,
-                            size: 108,
-                            fontSize: 27,
-                          );
-                        },
+                      const CircleAvatar(
+                        radius: 54,
+                        backgroundColor: Color(0xFF7242A5),
+                        child: Icon(
+                          Icons.person_rounded,
+                          color: Colors.white,
+                          size: 53,
+                        ),
                       ),
                       const SizedBox(height: 16),
                       Text(
@@ -9275,355 +9145,89 @@ class _ProviderMediaGallery extends StatefulWidget {
 class _ProviderMediaGalleryState extends State<_ProviderMediaGallery> {
   int _tab = 0;
 
-  bool _loading = true;
-  String? _error;
-  String _providerId = '';
+  static const List<_ProviderMediaItem> _photos = [
+    _ProviderMediaItem(
+      title: 'Provider Portrait',
+      subtitle: 'Professional profile photo',
+      icon: Icons.person_rounded,
+      kind: 'photo',
+    ),
+    _ProviderMediaItem(
+      title: 'Wellness Studio',
+      subtitle: 'Treatment environment',
+      icon: Icons.spa_rounded,
+      kind: 'photo',
+    ),
+    _ProviderMediaItem(
+      title: 'Treatment Room',
+      subtitle: 'Private wellness space',
+      icon: Icons.bedroom_parent_outlined,
+      kind: 'photo',
+    ),
+    _ProviderMediaItem(
+      title: 'Professional Setup',
+      subtitle: 'Provider equipment and setup',
+      icon: Icons.auto_awesome_rounded,
+      kind: 'photo',
+    ),
+    _ProviderMediaItem(
+      title: 'Wellness Environment',
+      subtitle: 'Relaxing treatment space',
+      icon: Icons.self_improvement_rounded,
+      kind: 'photo',
+    ),
+    _ProviderMediaItem(
+      title: 'Provider Gallery',
+      subtitle: 'Additional provider media',
+      icon: Icons.photo_library_outlined,
+      kind: 'photo',
+    ),
+  ];
 
-  List<Map<String, dynamic>> _livePhotos = [];
-  List<Map<String, dynamic>> _liveVideos = [];
+  static const List<_ProviderMediaItem> _videos = [
+    _ProviderMediaItem(
+      title: 'Meet Your Provider',
+      subtitle: 'Provider introduction',
+      icon: Icons.play_circle_fill_rounded,
+      kind: 'video',
+    ),
+    _ProviderMediaItem(
+      title: 'Studio Tour',
+      subtitle: 'See the wellness environment',
+      icon: Icons.videocam_rounded,
+      kind: 'video',
+    ),
+    _ProviderMediaItem(
+      title: 'Service Overview',
+      subtitle: 'Learn about available services',
+      icon: Icons.ondemand_video_rounded,
+      kind: 'video',
+    ),
+  ];
 
-  // Kept empty only for compatibility with the old all-media screen.
-  // No demo media is shown anymore.
-  static const List<_ProviderMediaItem> _photos = [];
-  static const List<_ProviderMediaItem> _videos = [];
+  List<_ProviderMediaItem> get _items => _tab == 0 ? _photos : _videos;
 
-  @override
-  void initState() {
-    super.initState();
-    _loadLiveProviderMedia();
-  }
-
-  Future<void> _loadLiveProviderMedia() async {
-    if (mounted) {
-      setState(() {
-        _loading = true;
-        _error = null;
-      });
-    }
-
-    try {
-      final profileData = await Supabase.instance.client
-          .from('provider_profiles')
-          .select('id, full_name, professional_name');
-
-      final profiles = (profileData as List)
-          .map((row) => Map<String, dynamic>.from(row as Map))
-          .toList();
-
-      Map<String, dynamic>? matchedProfile;
-
-      final target = widget.providerName.trim().toLowerCase();
-
-      for (final profile in profiles) {
-        final professionalName =
-            profile['professional_name']?.toString().trim().toLowerCase() ?? '';
-
-        final fullName =
-            profile['full_name']?.toString().trim().toLowerCase() ?? '';
-
-        if (professionalName == target || fullName == target) {
-          matchedProfile = profile;
-          break;
-        }
-      }
-
-      if (matchedProfile == null) {
-        throw Exception(
-          'Provider profile not found for ${widget.providerName}.',
-        );
-      }
-
-      final providerId = matchedProfile['id']?.toString() ?? '';
-
-      if (providerId.isEmpty) {
-        throw Exception('Provider ID is missing.');
-      }
-
-      final mediaData = await Supabase.instance.client
-          .from('provider_media')
-          .select(
-            'id, provider_id, media_type, public_url, file_name, created_at',
-          )
-          .eq('provider_id', providerId)
-          .order('created_at', ascending: false);
-
-      final rows = (mediaData as List)
-          .map((row) => Map<String, dynamic>.from(row as Map))
-          .where(
-            (row) => (row['public_url']?.toString().trim().isNotEmpty ?? false),
-          )
-          .toList();
-
-      if (!mounted) return;
-
-      setState(() {
-        _providerId = providerId;
-
-        _livePhotos = rows
-            .where((row) => row['media_type']?.toString() == 'photo')
-            .toList();
-
-        _liveVideos = rows
-            .where((row) => row['media_type']?.toString() == 'video')
-            .toList();
-
-        _loading = false;
-        _error = null;
-      });
-    } catch (error) {
-      if (!mounted) return;
-
-      setState(() {
-        _loading = false;
-        _error = error.toString();
-      });
-    }
-  }
-
-  List<Map<String, dynamic>> get _currentItems {
-    return _tab == 0 ? _livePhotos : _liveVideos;
-  }
-
-  void _openPhoto(Map<String, dynamic> selectedMedia) {
-    final urls = _livePhotos
-        .map((media) => media['public_url']?.toString() ?? '')
-        .where((url) => url.isNotEmpty)
-        .toList();
-
-    final selectedUrl = selectedMedia['public_url']?.toString() ?? '';
-
-    if (urls.isEmpty || selectedUrl.isEmpty) {
-      return;
-    }
-
-    final index = urls.indexOf(selectedUrl);
-
+  void _openMedia(BuildContext context, _ProviderMediaItem item) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => _ProviderPhotoViewer(
-          urls: urls,
-          initialIndex: index < 0 ? 0 : index,
-        ),
+        builder: (_) =>
+            _ProviderMediaViewer(providerName: widget.providerName, item: item),
       ),
     );
   }
 
-  void _openVideo(Map<String, dynamic> media) {
-    final url = media['public_url']?.toString() ?? '';
-
-    if (url.isEmpty) {
-      return;
-    }
-
+  void _openAllMedia() {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => _ProviderVideoViewer(
-          url: url,
-          title: media['file_name']?.toString() ?? 'Provider Video',
-        ),
+        builder: (_) =>
+            _AllProviderMediaScreen(providerName: widget.providerName),
       ),
-    );
-  }
-
-  Widget _emptyState() {
-    final photos = _tab == 0;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 42),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.025),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-      ),
-      child: Column(
-        children: [
-          Icon(
-            photos
-                ? Icons.photo_library_outlined
-                : Icons.video_library_outlined,
-            color: Colors.white30,
-            size: 42,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            photos
-                ? 'No photos uploaded by this provider yet.'
-                : 'No videos uploaded by this provider yet.',
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Colors.white54,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _photoGallery() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final columns = constraints.maxWidth > 720
-            ? 3
-            : constraints.maxWidth > 420
-            ? 2
-            : 1;
-
-        const gap = 10.0;
-
-        final width = (constraints.maxWidth - ((columns - 1) * gap)) / columns;
-
-        return Wrap(
-          spacing: gap,
-          runSpacing: gap,
-          children: [
-            for (final media in _livePhotos)
-              SizedBox(
-                width: width,
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: () => _openPhoto(media),
-                    borderRadius: BorderRadius.circular(17),
-                    child: Container(
-                      height: columns == 1 ? 280 : 190,
-                      clipBehavior: Clip.antiAlias,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF15101D),
-                        borderRadius: BorderRadius.circular(17),
-                        border: Border.all(
-                          color: const Color(0xFFA365FF)
-                              .withValues(alpha: 0.14),
-                        ),
-                      ),
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          Image.network(
-                            media['public_url']?.toString() ?? '',
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => const Center(
-                              child: Icon(
-                                Icons.broken_image_outlined,
-                                color: Colors.white38,
-                                size: 42,
-                              ),
-                            ),
-                          ),
-                          const Positioned(
-                            right: 10,
-                            bottom: 10,
-                            child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                color: Color(0xB3000000),
-                                shape: BoxShape.circle,
-                              ),
-                              child: Padding(
-                                padding: EdgeInsets.all(9),
-                                child: Icon(
-                                  Icons.open_in_full_rounded,
-                                  color: Colors.white,
-                                  size: 18,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _videoGallery() {
-    return Column(
-      children: [
-        for (final media in _liveVideos) ...[
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: () => _openVideo(media),
-              borderRadius: BorderRadius.circular(18),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF2A163A), Color(0xFF17101E)],
-                  ),
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(
-                    color: const Color(0xFFFF7CC8).withValues(alpha: 0.15),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 68,
-                      height: 68,
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFFFF7CC8), Color(0xFF8139D9)],
-                        ),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: const Icon(
-                        Icons.play_arrow_rounded,
-                        color: Colors.white,
-                        size: 40,
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            media['file_name']?.toString() ?? 'Provider Video',
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 15,
-                            ),
-                          ),
-                          const SizedBox(height: 5),
-                          const Text(
-                            'Tap to watch',
-                            style: TextStyle(
-                              color: Colors.white54,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Icon(
-                      Icons.play_circle_fill_rounded,
-                      color: Color(0xFFFF9AD4),
-                      size: 34,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-        ],
-      ],
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final items = _currentItems;
+    final items = _items;
 
     return Container(
       width: double.infinity,
@@ -9666,35 +9270,33 @@ class _ProviderMediaGalleryState extends State<_ProviderMediaGallery> {
                 ),
               ),
               const SizedBox(width: 12),
-              Expanded(
+              const Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'PHOTOS & VIDEOS',
                       style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w900,
-                        fontSize: 14,
+                        letterSpacing: 0.6,
                       ),
                     ),
-                    const SizedBox(height: 3),
+                    SizedBox(height: 3),
                     Text(
-                      '${widget.providerName} • Provider uploads',
-                      style: const TextStyle(
-                        color: Colors.white38,
-                        fontSize: 10,
-                      ),
+                      'See the provider, environment and services before booking.',
+                      style: TextStyle(color: Colors.white54, fontSize: 12),
                     ),
                   ],
                 ),
               ),
-              if (_providerId.isNotEmpty)
-                const Icon(
-                  Icons.verified_rounded,
-                  color: Color(0xFF75E59C),
-                  size: 20,
+              TextButton(
+                onPressed: _openAllMedia,
+                child: const Text(
+                  'View All',
+                  style: TextStyle(fontWeight: FontWeight.w800),
                 ),
+              ),
             ],
           ),
 
@@ -9703,8 +9305,8 @@ class _ProviderMediaGalleryState extends State<_ProviderMediaGallery> {
           Container(
             padding: const EdgeInsets.all(5),
             decoration: BoxDecoration(
-              color: const Color(0xFF120D18),
-              borderRadius: BorderRadius.circular(16),
+              color: const Color(0xFF0C0811),
+              borderRadius: BorderRadius.circular(15),
               border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
             ),
             child: Row(
@@ -9713,12 +9315,10 @@ class _ProviderMediaGalleryState extends State<_ProviderMediaGallery> {
                   child: _MediaTabButton(
                     icon: Icons.photo_rounded,
                     label: 'Photos',
-                    count: _livePhotos.length,
+                    count: _photos.length,
                     selected: _tab == 0,
                     onTap: () {
-                      setState(() {
-                        _tab = 0;
-                      });
+                      setState(() => _tab = 0);
                     },
                   ),
                 ),
@@ -9727,12 +9327,10 @@ class _ProviderMediaGalleryState extends State<_ProviderMediaGallery> {
                   child: _MediaTabButton(
                     icon: Icons.videocam_rounded,
                     label: 'Videos',
-                    count: _liveVideos.length,
+                    count: _videos.length,
                     selected: _tab == 1,
                     onTap: () {
-                      setState(() {
-                        _tab = 1;
-                      });
+                      setState(() => _tab = 1);
                     },
                   ),
                 ),
@@ -9740,69 +9338,72 @@ class _ProviderMediaGalleryState extends State<_ProviderMediaGallery> {
             ),
           ),
 
-          const SizedBox(height: 16),
+          const SizedBox(height: 15),
 
-          if (_loading)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 34),
-              child: Center(child: CircularProgressIndicator()),
-            )
-          else if (_error != null)
-            Container(
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                color: const Color(0xFF25141B),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Column(
+          if (items.isNotEmpty)
+            _FeaturedProviderMedia(
+              item: items.first,
+              providerName: widget.providerName,
+              onTap: () => _openMedia(context, items.first),
+            ),
+
+          const SizedBox(height: 10),
+
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final count = constraints.maxWidth > 650 ? 3 : 2;
+
+              const gap = 9.0;
+
+              final width = (constraints.maxWidth - gap * (count - 1)) / count;
+
+              return Wrap(
+                spacing: gap,
+                runSpacing: gap,
                 children: [
-                  const Icon(
-                    Icons.error_outline_rounded,
-                    color: Color(0xFFFF8C9B),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Unable to load provider media.',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w800,
+                  for (final item in items.skip(1))
+                    _ProviderMediaThumbnail(
+                      width: width,
+                      item: item,
+                      onTap: () => _openMedia(context, item),
                     ),
-                  ),
-                  const SizedBox(height: 10),
-                  OutlinedButton.icon(
-                    onPressed: _loadLiveProviderMedia,
-                    icon: const Icon(Icons.refresh_rounded),
-                    label: const Text('RETRY'),
-                  ),
                 ],
-              ),
-            )
-          else if (items.isEmpty)
-            _emptyState()
-          else if (_tab == 0)
-            _photoGallery()
-          else
-            _videoGallery(),
+              );
+            },
+          ),
 
-          if (!_loading && _error == null) ...[
-            const SizedBox(height: 14),
-            const Row(
+          const SizedBox(height: 14),
+
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF6D36AE).withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: const Color(0xFFA365FF).withValues(alpha: 0.12),
+              ),
+            ),
+            child: const Row(
               children: [
                 Icon(
                   Icons.verified_user_outlined,
                   color: Color(0xFFB984FF),
-                  size: 18,
+                  size: 19,
                 ),
-                SizedBox(width: 8),
+                SizedBox(width: 9),
                 Expanded(
                   child: Text(
-                    'Only media uploaded by this provider is shown.',
-                    style: TextStyle(color: Colors.white54, fontSize: 11),
+                    'Provider media will be uploaded and managed through verified provider accounts.',
+                    style: TextStyle(
+                      color: Colors.white54,
+                      fontSize: 11,
+                      height: 1.35,
+                    ),
                   ),
                 ),
               ],
             ),
-          ],
+          ),
         ],
       ),
     );
@@ -10394,68 +9995,7 @@ class _CustomerBookingFlowScreenState
   String _service = 'Deep Tissue';
   String _day = 'Today';
   String _time = '4:30 PM';
-  String _preferredContactMethod = 'Phone';
   bool _submitting = false;
-
-  final _customerNameController = TextEditingController();
-  final _customerPhoneController = TextEditingController();
-  final _customerEmailController = TextEditingController();
-  final _serviceAddressController = TextEditingController();
-  final _accessInstructionsController = TextEditingController();
-  final _bookingNotesController = TextEditingController();
-
-  @override
-  void initState() {
-    super.initState();
-    _loadCustomerContact();
-  }
-
-  Future<void> _loadCustomerContact() async {
-    final user = Supabase.instance.client.auth.currentUser;
-    if (user == null) return;
-
-    try {
-      final profile = await Supabase.instance.client
-          .from('profiles')
-          .select('full_name, email, phone')
-          .eq('id', user.id)
-          .maybeSingle();
-
-      _customerNameController.text =
-          profile?['full_name']?.toString() ??
-          user.userMetadata?['full_name']?.toString() ??
-          '';
-
-      _customerPhoneController.text =
-          profile?['phone']?.toString() ??
-          user.userMetadata?['phone']?.toString() ??
-          '';
-
-      _customerEmailController.text =
-          profile?['email']?.toString() ?? user.email ?? '';
-    } catch (_) {
-      _customerNameController.text =
-          user.userMetadata?['full_name']?.toString() ?? '';
-      _customerPhoneController.text =
-          user.userMetadata?['phone']?.toString() ?? '';
-      _customerEmailController.text = user.email ?? '';
-    }
-
-    if (mounted) {
-      setState(() {});
-    }
-  }
-
-  @override
-  void dispose() {
-    _customerNameController.dispose();
-    _customerPhoneController.dispose();
-    _customerEmailController.dispose();
-    _serviceAddressController.dispose();
-    _accessInstructionsController.dispose();
-    _bookingNotesController.dispose();
-    super.dispose();
-  }
 
   Future<void> _submitBooking() async {
     if (_submitting) return;
@@ -10467,43 +10007,6 @@ class _CustomerBookingFlowScreenState
         const SnackBar(
           content: Text('Please sign in before creating a booking.'),
         ),
-      );
-      return;
-    }
-
-    final customerName = _customerNameController.text.trim();
-    final customerPhone = _customerPhoneController.text.trim();
-    final customerEmail = _customerEmailController.text.trim();
-    final serviceAddress = _serviceAddressController.text.trim();
-    final accessInstructions = _accessInstructionsController.text.trim();
-    final bookingNotes = _bookingNotesController.text.trim();
-
-    if (customerName.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter your full name.')),
-      );
-      return;
-    }
-
-    if (customerPhone.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter your phone number.')),
-      );
-      return;
-    }
-
-    if (customerEmail.isEmpty ||
-        !customerEmail.contains('@') ||
-        !customerEmail.contains('.')) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid email address.')),
-      );
-      return;
-    }
-
-    if (serviceAddress.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter the service address.')),
       );
       return;
     }
@@ -10529,15 +10032,6 @@ class _CustomerBookingFlowScreenState
         'booking_day': _day,
         'booking_time': _time,
         'service_type': 'Mobile Service',
-        'service_address': serviceAddress,
-        'customer_name': customerName,
-        'customer_phone': customerPhone,
-        'customer_email': customerEmail,
-        'preferred_contact_method': _preferredContactMethod,
-        'access_instructions': accessInstructions.isEmpty
-            ? null
-            : accessInstructions,
-        'booking_notes': bookingNotes.isEmpty ? null : bookingNotes,
         'status': 'Requested',
         'payment_status': 'Pending',
       });
@@ -10677,132 +10171,6 @@ class _CustomerBookingFlowScreenState
                         },
                       ),
                   ],
-                ),
-
-                const SizedBox(height: 26),
-
-                const _BookingSectionTitle(
-                  number: '04',
-                  title: 'Customer and Location',
-                ),
-                const SizedBox(height: 12),
-
-                Container(
-                  padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF121423),
-                    borderRadius: BorderRadius.circular(22),
-                    border: Border.all(
-                      color: const Color(0xFF7A5CFF).withValues(alpha: .25),
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const Text(
-                        'APPOINTMENT CONTACT INFORMATION',
-                        style: TextStyle(
-                          color: Color(0xFFB8C8FF),
-                          fontSize: 11,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: .8,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      TextField(
-                        controller: _customerNameController,
-                        textCapitalization: TextCapitalization.words,
-                        decoration: const InputDecoration(
-                          labelText: 'Full Name *',
-                          prefixIcon: Icon(Icons.person_outline_rounded),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-
-                      TextField(
-                        controller: _customerPhoneController,
-                        keyboardType: TextInputType.phone,
-                        decoration: const InputDecoration(
-                          labelText: 'Phone Number *',
-                          prefixIcon: Icon(Icons.phone_outlined),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-
-                      TextField(
-                        controller: _customerEmailController,
-                        keyboardType: TextInputType.emailAddress,
-                        decoration: const InputDecoration(
-                          labelText: 'Email Address *',
-                          prefixIcon: Icon(Icons.email_outlined),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-
-                      TextField(
-                        controller: _serviceAddressController,
-                        keyboardType: TextInputType.streetAddress,
-                        textCapitalization: TextCapitalization.words,
-                        decoration: const InputDecoration(
-                          labelText: 'Service Address *',
-                          hintText: 'Street, city, state, ZIP',
-                          prefixIcon: Icon(Icons.location_on_outlined),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      const Text(
-                        'PREFERRED CONTACT METHOD',
-                        style: TextStyle(
-                          color: Colors.white54,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          for (final option in const ['Phone', 'Text', 'Email'])
-                            ChoiceChip(
-                              label: Text(option),
-                              selected: _preferredContactMethod == option,
-                              onSelected: (_) {
-                                setState(() {
-                                  _preferredContactMethod = option;
-                                });
-                              },
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 14),
-
-                      TextField(
-                        controller: _accessInstructionsController,
-                        maxLines: 2,
-                        decoration: const InputDecoration(
-                          labelText: 'Access Instructions',
-                          hintText:
-                              'Gate code, apartment, parking, entry details',
-                          prefixIcon: Icon(Icons.key_outlined),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-
-                      TextField(
-                        controller: _bookingNotesController,
-                        maxLines: 3,
-                        decoration: const InputDecoration(
-                          labelText: 'Appointment Notes',
-                          hintText: 'Anything the provider should know before arrival',
-                          prefixIcon: Icon(Icons.notes_rounded),
-                        ),
-                      ),
-                    ],
-                  ),
                 ),
 
                 const SizedBox(height: 26),
@@ -12282,7 +11650,6 @@ class _CustomerSavedProvidersScreenState
     extends State<_CustomerSavedProvidersScreen> {
   final List<String> _saved = [];
   final Map<String, String> _savedIds = {};
-  final Map<String, String> _savedPhotos = {};
   bool _loading = true;
 
   @override
@@ -12299,7 +11666,6 @@ class _CustomerSavedProvidersScreenState
       setState(() {
         _saved.clear();
         _savedIds.clear();
-        _savedPhotos.clear();
         _loading = false;
       });
       return;
@@ -12329,11 +11695,10 @@ class _CustomerSavedProvidersScreenState
 
       final profileRows = await Supabase.instance.client
           .from('provider_profiles')
-          .select('id, full_name, professional_name, profile_photo_url');
+          .select('id, full_name, professional_name');
 
       final names = <String>[];
       final nameIds = <String, String>{};
-      final namePhotos = <String, String>{};
 
       for (final row in (profileRows as List)) {
         final provider = Map<String, dynamic>.from(row as Map);
@@ -12351,7 +11716,6 @@ class _CustomerSavedProvidersScreenState
 
         names.add(name);
         nameIds[name] = id;
-        namePhotos[name] = provider['profile_photo_url']?.toString() ?? '';
       }
 
       if (!mounted) return;
@@ -12362,9 +11726,6 @@ class _CustomerSavedProvidersScreenState
         _savedIds
           ..clear()
           ..addAll(nameIds);
-        _savedPhotos
-          ..clear()
-          ..addAll(namePhotos);
         _loading = false;
       });
     } catch (error) {
@@ -12395,7 +11756,6 @@ class _CustomerSavedProvidersScreenState
       setState(() {
         _saved.remove(provider);
         _savedIds.remove(provider);
-        _savedPhotos.remove(provider);
       });
     } catch (error) {
       if (!mounted) return;
@@ -12527,7 +11887,6 @@ class _CustomerSavedProvidersScreenState
                                     width: cardWidth,
                                     child: _SavedProviderRow(
                                       provider: provider,
-                                      photoUrl: _savedPhotos[provider] ?? '',
                                       onRemove: () {
                                         _removeFavorite(provider);
                                       },
@@ -12559,14 +11918,9 @@ class _CustomerSavedProvidersScreenState
 }
 
 class _SavedProviderRow extends StatelessWidget {
-  const _SavedProviderRow({
-    required this.provider,
-    required this.photoUrl,
-    required this.onRemove,
-  });
+  const _SavedProviderRow({required this.provider, required this.onRemove});
 
   final String provider;
-  final String photoUrl;
   final VoidCallback onRemove;
 
   @override
@@ -12596,11 +11950,25 @@ class _SavedProviderRow extends StatelessWidget {
         children: [
           Row(
             children: [
-              _LiveProviderAvatar(
-                photoUrl: photoUrl,
-                fallbackText: initials,
-                size: 54,
-                fontSize: 16,
+              Container(
+                width: 54,
+                height: 54,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    colors: [Color(0xFF714AFF), Color(0xFFA44CFF)],
+                  ),
+                ),
+                child: Center(
+                  child: Text(
+                    initials,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
               ),
               const Spacer(),
               IconButton(
@@ -13635,7 +13003,7 @@ class _CustomerAiSmartMatchScreenState
           .from('provider_profiles')
           .select(
             'id, full_name, professional_name, business_name, bio, '
-            'service_area, available_now, rating, review_count, profile_photo_url',
+            'service_area, available_now, rating, review_count',
           )
           .order('professional_name');
 
@@ -13722,7 +13090,6 @@ class _CustomerAiSmartMatchScreenState
               ? businessName
               : 'Wellness Provider',
           'rating': rating > 0 ? rating.toStringAsFixed(1) : 'NEW',
-          'profile_photo_url': profile['profile_photo_url']?.toString() ?? '',
           'match': 'LIVE',
           'reason': reasonParts.join(' '),
           'color': const Color(0xFF5EDCFF),
@@ -14114,79 +13481,19 @@ class _SmartMatchResultCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          SizedBox(
-            width: 51,
-            height: 51,
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Container(
-                  width: 47,
-                  height: 47,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: color.withValues(alpha: .13),
-                    border: Border.all(
-                      color: color.withValues(alpha: .65),
-                      width: 2,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: color.withValues(alpha: .18),
-                        blurRadius: 12,
-                        spreadRadius: 1,
-                      ),
-                    ],
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child:
-                      (provider['profile_photo_url']
-                              ?.toString()
-                              .trim()
-                              .isNotEmpty ??
-                          false)
-                      ? Image.network(
-                          provider['profile_photo_url'].toString().trim(),
-                          width: 47,
-                          height: 47,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Icon(
-                            Icons.person_rounded,
-                            color: color,
-                            size: 25,
-                          ),
-                        )
-                      : Icon(Icons.person_rounded, color: color, size: 25),
-                ),
-                Positioned(
-                  right: 0,
-                  bottom: 0,
-                  child: Container(
-                    constraints: const BoxConstraints(
-                      minWidth: 19,
-                      minHeight: 19,
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 5,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF111827),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: color.withValues(alpha: .85)),
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      '#$rank',
-                      style: TextStyle(
-                        color: color,
-                        fontSize: 7,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+          Container(
+            width: 47,
+            height: 47,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: color.withValues(alpha: .13),
+              border: Border.all(color: color.withValues(alpha: .45)),
+            ),
+            child: Center(
+              child: Text(
+                '#$rank',
+                style: TextStyle(color: color, fontWeight: FontWeight.w900),
+              ),
             ),
           ),
 
@@ -15648,278 +14955,8 @@ class _ProviderModuleScreen extends StatefulWidget {
   State<_ProviderModuleScreen> createState() => _ProviderModuleScreenState();
 }
 
-class _ProviderPhotoViewer extends StatefulWidget {
-  const _ProviderPhotoViewer({required this.urls, required this.initialIndex});
-
-  final List<String> urls;
-  final int initialIndex;
-
-  @override
-  State<_ProviderPhotoViewer> createState() => _ProviderPhotoViewerState();
-}
-
-class _ProviderPhotoViewerState extends State<_ProviderPhotoViewer> {
-  late final PageController _pageController;
-  late int _index;
-
-  @override
-  void initState() {
-    super.initState();
-    _index = widget.initialIndex;
-    _pageController = PageController(initialPage: widget.initialIndex);
-  }
-
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
-        title: Text(
-          '${_index + 1} of ${widget.urls.length}',
-          style: const TextStyle(fontWeight: FontWeight.w700),
-        ),
-      ),
-      body: PageView.builder(
-        controller: _pageController,
-        itemCount: widget.urls.length,
-        onPageChanged: (value) {
-          setState(() {
-            _index = value;
-          });
-        },
-        itemBuilder: (context, index) {
-          return Center(
-            child: InteractiveViewer(
-              minScale: 1,
-              maxScale: 5,
-              child: Image.network(
-                widget.urls[index],
-                fit: BoxFit.contain,
-                errorBuilder: (_, __, ___) => const Center(
-                  child: Icon(
-                    Icons.broken_image_outlined,
-                    color: Colors.white54,
-                    size: 72,
-                  ),
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _ProviderVideoViewer extends StatefulWidget {
-  const _ProviderVideoViewer({required this.url, required this.title});
-
-  final String url;
-  final String title;
-
-  @override
-  State<_ProviderVideoViewer> createState() => _ProviderVideoViewerState();
-}
-
-class _ProviderVideoViewerState extends State<_ProviderVideoViewer> {
-  late final VideoPlayerController _controller;
-  late final Future<void> _initializeVideoFuture;
-
-  @override
-  void initState() {
-    super.initState();
-
-    _controller = VideoPlayerController.networkUrl(Uri.parse(widget.url));
-
-    _initializeVideoFuture = _controller.initialize().then((_) {
-      if (mounted) {
-        setState(() {});
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  String _formatVideoTime(Duration duration) {
-    final minutes = duration.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
-
-    if (duration.inHours > 0) {
-      final hours = duration.inHours.toString().padLeft(2, '0');
-      return '$hours:$minutes:$seconds';
-    }
-
-    return '$minutes:$seconds';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
-        title: Text(widget.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-      ),
-      body: FutureBuilder<void>(
-        future: _initializeVideoFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          if (!_controller.value.isInitialized) {
-            return const Center(
-              child: Text(
-                'Unable to play this video.',
-                style: TextStyle(color: Colors.white70),
-              ),
-            );
-          }
-
-          return ValueListenableBuilder<VideoPlayerValue>(
-            valueListenable: _controller,
-            builder: (context, value, child) {
-              final duration = value.duration;
-              final position = value.position;
-
-              final maxMs = duration.inMilliseconds > 0
-                  ? duration.inMilliseconds.toDouble()
-                  : 1.0;
-
-              final currentMs = position.inMilliseconds
-                  .clamp(0, maxMs.toInt())
-                  .toDouble();
-
-              return Column(
-                children: [
-                  Expanded(
-                    child: Center(
-                      child: AspectRatio(
-                        aspectRatio: value.aspectRatio > 0
-                            ? value.aspectRatio
-                            : 16 / 9,
-                        child: VideoPlayer(_controller),
-                      ),
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 22),
-                    decoration: const BoxDecoration(color: Color(0xFF090B11)),
-                    child: Column(
-                      children: [
-                        Slider(
-                          value: currentMs,
-                          max: maxMs,
-                          onChanged: (newValue) {
-                            _controller.seekTo(
-                              Duration(milliseconds: newValue.round()),
-                            );
-                          },
-                        ),
-                        Row(
-                          children: [
-                            IconButton(
-                              onPressed: () {
-                                if (value.isPlaying) {
-                                  _controller.pause();
-                                } else {
-                                  _controller.play();
-                                }
-                              },
-                              icon: Icon(
-                                value.isPlaying
-                                    ? Icons.pause_circle_filled_rounded
-                                    : Icons.play_circle_fill_rounded,
-                                color: Colors.white,
-                                size: 40,
-                              ),
-                            ),
-                            IconButton(
-                              onPressed: () {
-                                final target =
-                                    position - const Duration(seconds: 10);
-
-                                _controller.seekTo(
-                                  target.isNegative ? Duration.zero : target,
-                                );
-                              },
-                              icon: const Icon(
-                                Icons.replay_10_rounded,
-                                color: Colors.white,
-                              ),
-                            ),
-                            IconButton(
-                              onPressed: () {
-                                final target =
-                                    position + const Duration(seconds: 10);
-
-                                _controller.seekTo(
-                                  target > duration ? duration : target,
-                                );
-                              },
-                              icon: const Icon(
-                                Icons.forward_10_rounded,
-                                color: Colors.white,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              '${_formatVideoTime(position)} / '
-                              '${_formatVideoTime(duration)}',
-                              style: const TextStyle(
-                                color: Colors.white70,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const Spacer(),
-                            IconButton(
-                              onPressed: () {
-                                _controller.setVolume(value.volume > 0 ? 0 : 1);
-                              },
-                              icon: Icon(
-                                value.volume > 0
-                                    ? Icons.volume_up_rounded
-                                    : Icons.volume_off_rounded,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              );
-            },
-          );
-        },
-      ),
-    );
-  }
-}
-
 class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
   bool _availableNow = true;
-
-  bool _mediaLoading = false;
-  bool _mediaUploading = false;
-  String _providerProfilePhotoUrl = '';
-
-  List<Map<String, dynamic>> _providerPhotoMedia = [];
-  List<Map<String, dynamic>> _providerVideoMedia = [];
 
   List<Map<String, dynamic>> _providerBookings = [];
   bool _bookingsLoading = false;
@@ -15931,10 +14968,6 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
 
     if (widget.title == 'Bookings') {
       _loadProviderBookings();
-    }
-
-    if (widget.title == 'Photos & Videos') {
-      _loadProviderMedia();
     }
   }
 
@@ -15963,8 +14996,6 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
           .select(
             'id, customer_id, provider_id, provider_name, service_name, '
             'booking_day, booking_time, service_type, service_address, '
-            'customer_name, customer_phone, customer_email, '
-            'preferred_contact_method, access_instructions, booking_notes, '
             'status, payment_status, eta_minutes, price, created_at, updated_at',
           )
           .eq('provider_id', user.id)
@@ -16447,14 +15478,6 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
     final time = booking['booking_time']?.toString() ?? '';
     final serviceType = booking['service_type']?.toString() ?? '';
     final address = booking['service_address']?.toString();
-    final customerName = booking['customer_name']?.toString().trim() ?? '';
-    final customerPhone = booking['customer_phone']?.toString().trim() ?? '';
-    final customerEmail = booking['customer_email']?.toString().trim() ?? '';
-    final preferredContact =
-        booking['preferred_contact_method']?.toString().trim() ?? '';
-    final accessInstructions =
-        booking['access_instructions']?.toString().trim() ?? '';
-    final bookingNotes = booking['booking_notes']?.toString().trim() ?? '';
     final paymentStatus = booking['payment_status']?.toString() ?? 'Pending';
     final eta = booking['eta_minutes'];
     final price = booking['price'];
@@ -16593,116 +15616,13 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
               style: const TextStyle(color: Colors.white54, fontSize: 12),
             ),
           ],
-          const SizedBox(height: 14),
-
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: const Color(0xFF090E19),
-              borderRadius: BorderRadius.circular(15),
-              border: Border.all(
-                color: const Color(0xFF39D6FF).withValues(alpha: .20),
-              ),
+          if (address != null && address.trim().isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              address,
+              style: const TextStyle(color: Colors.white54, fontSize: 12),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Row(
-                  children: [
-                    Icon(
-                      Icons.contact_phone_outlined,
-                      color: Color(0xFF39D6FF),
-                      size: 17,
-                    ),
-                    SizedBox(width: 7),
-                    Text(
-                      'CUSTOMER CONTACT',
-                      style: TextStyle(
-                        color: Color(0xFF39D6FF),
-                        fontSize: 10,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: .8,
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 10),
-
-                if (customerName.isNotEmpty)
-                  Text(
-                    customerName,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-
-                if (customerPhone.isNotEmpty) ...[
-                  const SizedBox(height: 7),
-                  Text(
-                    'Phone: $customerPhone',
-                    style: const TextStyle(color: Colors.white70, fontSize: 12),
-                  ),
-                ],
-
-                if (customerEmail.isNotEmpty) ...[
-                  const SizedBox(height: 7),
-                  Text(
-                    'Email: $customerEmail',
-                    style: const TextStyle(color: Colors.white70, fontSize: 12),
-                  ),
-                ],
-
-                if (preferredContact.isNotEmpty) ...[
-                  const SizedBox(height: 7),
-                  Text(
-                    'Preferred contact: $preferredContact',
-                    style: const TextStyle(
-                      color: Color(0xFFB8C8FF),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-
-                if (address != null && address.trim().isNotEmpty) ...[
-                  const SizedBox(height: 7),
-                  Text(
-                    'Address: $address',
-                    style: const TextStyle(color: Colors.white70, fontSize: 12),
-                  ),
-                ],
-
-                if (accessInstructions.isNotEmpty) ...[
-                  const SizedBox(height: 7),
-                  Text(
-                    'Access: $accessInstructions',
-                    style: const TextStyle(color: Colors.white54, fontSize: 12),
-                  ),
-                ],
-
-                if (bookingNotes.isNotEmpty) ...[
-                  const SizedBox(height: 7),
-                  Text(
-                    'Notes: $bookingNotes',
-                    style: const TextStyle(color: Colors.white54, fontSize: 12),
-                  ),
-                ],
-
-                if (customerName.isEmpty &&
-                    customerPhone.isEmpty &&
-                    customerEmail.isEmpty &&
-                    (address == null || address.trim().isEmpty))
-                  const Text(
-                    'No customer contact information on this older booking.',
-                    style: TextStyle(color: Colors.white38, fontSize: 11),
-                  ),
-              ],
-            ),
-          ),
-
+          ],
           if (eta != null) ...[
             const SizedBox(height: 6),
             Text(
@@ -17024,291 +15944,6 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
     );
   }
 
-  Future<void> _loadProviderMedia() async {
-    final user = Supabase.instance.client.auth.currentUser;
-
-    if (user == null) return;
-
-    setState(() {
-      _mediaLoading = true;
-    });
-
-    try {
-      final profile = await Supabase.instance.client
-          .from('provider_profiles')
-          .select('profile_photo_url')
-          .eq('id', user.id)
-          .maybeSingle();
-
-      final mediaData = await Supabase.instance.client
-          .from('provider_media')
-          .select(
-            'id, provider_id, media_type, storage_path, public_url, file_name, created_at',
-          )
-          .eq('provider_id', user.id)
-          .order('created_at', ascending: false);
-
-      final rows = (mediaData as List)
-          .map((row) => Map<String, dynamic>.from(row as Map))
-          .toList();
-
-      if (!mounted) return;
-
-      setState(() {
-        _providerProfilePhotoUrl =
-            profile?['profile_photo_url']?.toString() ?? '';
-
-        _providerPhotoMedia = rows
-            .where((row) => row['media_type']?.toString() == 'photo')
-            .toList();
-
-        _providerVideoMedia = rows
-            .where((row) => row['media_type']?.toString() == 'video')
-            .toList();
-
-        _mediaLoading = false;
-      });
-    } catch (error) {
-      if (!mounted) return;
-
-      setState(() {
-        _mediaLoading = false;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Unable to load provider media: $error')),
-      );
-    }
-  }
-
-  String _safeProviderMediaName(String name) {
-    return name
-        .replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_')
-        .replaceAll(RegExp(r'_+'), '_');
-  }
-
-  Future<void> _pickAndUploadProviderMedia(String kind) async {
-    if (_mediaUploading) return;
-
-    final user = Supabase.instance.client.auth.currentUser;
-    if (user == null) return;
-
-    final isVideo = kind == 'video';
-    final isProfile = kind == 'profile';
-
-    try {
-      final pickedFiles = await FilePicker.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: isVideo
-            ? const ['mp4', 'mov', 'm4v', 'webm']
-            : const ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'],
-        allowMultiple: kind == 'photo',
-      );
-
-      if (pickedFiles.isEmpty) return;
-
-      setState(() {
-        _mediaUploading = true;
-      });
-
-      final files = isProfile ? <PlatformFile>[pickedFiles.first] : pickedFiles;
-
-      for (final file in files) {
-        final bytes = await file.readAsBytes();
-
-        final extension = (file.extension ?? (isVideo ? 'mp4' : 'jpg'))
-            .toLowerCase();
-
-        final safeName = _safeProviderMediaName(file.name);
-        final stamp = DateTime.now().microsecondsSinceEpoch;
-
-        final storagePath = isProfile
-            ? '${user.id}/profile/profile_$stamp.$extension'
-            : '${user.id}/$kind/${stamp}_$safeName';
-
-        await Supabase.instance.client.storage
-            .from('provider-media')
-            .uploadBinary(
-              storagePath,
-              bytes,
-              fileOptions: const FileOptions(upsert: false),
-            );
-
-        final publicUrl = Supabase.instance.client.storage
-            .from('provider-media')
-            .getPublicUrl(storagePath);
-
-        if (isProfile) {
-          await Supabase.instance.client
-              .from('provider_profiles')
-              .update({'profile_photo_url': publicUrl})
-              .eq('id', user.id);
-        } else {
-          await Supabase.instance.client.from('provider_media').insert({
-            'provider_id': user.id,
-            'media_type': kind,
-            'storage_path': storagePath,
-            'public_url': publicUrl,
-            'file_name': file.name,
-          });
-        }
-      }
-
-      await _loadProviderMedia();
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            isProfile
-                ? 'Profile photo updated.'
-                : isVideo
-                ? 'Video added.'
-                : 'Photo added.',
-          ),
-        ),
-      );
-    } catch (error) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Upload failed: $error')));
-    } finally {
-      if (mounted) {
-        setState(() {
-          _mediaUploading = false;
-        });
-      }
-    }
-  }
-
-  void _openProviderPhotoViewer(Map<String, dynamic> selectedMedia) {
-    final urls = _providerPhotoMedia
-        .map((media) => media['public_url']?.toString() ?? '')
-        .where((url) => url.isNotEmpty)
-        .toList();
-
-    final selectedUrl = selectedMedia['public_url']?.toString() ?? '';
-
-    if (urls.isEmpty || selectedUrl.isEmpty) {
-      return;
-    }
-
-    final initialIndex = urls.indexOf(selectedUrl);
-
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => _ProviderPhotoViewer(
-          urls: urls,
-          initialIndex: initialIndex < 0 ? 0 : initialIndex,
-        ),
-      ),
-    );
-  }
-
-  void _openProviderVideoViewer(Map<String, dynamic> media) {
-    final url = media['public_url']?.toString() ?? '';
-
-    if (url.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Video URL is unavailable.')),
-      );
-      return;
-    }
-
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => _ProviderVideoViewer(
-          url: url,
-          title: media['file_name']?.toString() ?? 'Provider Video',
-        ),
-      ),
-    );
-  }
-
-  Future<void> _deleteProviderMedia(Map<String, dynamic> media) async {
-    final id = media['id']?.toString() ?? '';
-    final storagePath = media['storage_path']?.toString() ?? '';
-
-    if (id.isEmpty) return;
-
-    try {
-      if (storagePath.isNotEmpty) {
-        await Supabase.instance.client.storage.from('provider-media').remove([
-          storagePath,
-        ]);
-      }
-
-      await Supabase.instance.client
-          .from('provider_media')
-          .delete()
-          .eq('id', id);
-
-      await _loadProviderMedia();
-    } catch (error) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Unable to remove media: $error')));
-    }
-  }
-
-  Widget _providerMediaPanel({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required Color accent,
-    required Widget child,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        gradient: LinearGradient(
-          colors: [accent.withValues(alpha: .12), const Color(0xFF080B13)],
-        ),
-        border: Border.all(color: accent.withValues(alpha: .25)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Icon(icon, color: accent),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      subtitle,
-                      style: const TextStyle(
-                        color: Colors.white54,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 15),
-          child,
-        ],
-      ),
-    );
-  }
-
   Widget _media() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -17320,258 +15955,28 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
         ),
         const SizedBox(height: 12),
 
-        if (_mediaLoading)
-          const Center(
-            child: Padding(
-              padding: EdgeInsets.all(35),
-              child: CircularProgressIndicator(),
-            ),
-          )
-        else ...[
-          _providerMediaPanel(
-            icon: Icons.account_circle_rounded,
-            title: 'Profile Photo',
-            subtitle:
-                'Main image customers see throughout the provider network.',
-            accent: const Color(0xFF39D6FF),
-            child: LayoutBuilder(
-              builder: (context, box) {
-                final mobile = box.maxWidth < 520;
+        _moduleAction(
+          icon: Icons.account_circle_rounded,
+          title: 'Profile Photo',
+          subtitle: 'Choose the main image customers see.',
+          accent: const Color(0xFF39D6FF),
+        ),
+        const SizedBox(height: 10),
 
-                final photo = Container(
-                  width: 120,
-                  height: 120,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: const Color(0xFF1A2035),
-                    border: Border.all(
-                      color: const Color(0xFF39D6FF),
-                      width: 2,
-                    ),
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: _providerProfilePhotoUrl.isNotEmpty
-                      ? Image.network(
-                          _providerProfilePhotoUrl,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) =>
-                              const Icon(Icons.person_rounded, size: 55),
-                        )
-                      : const Icon(Icons.person_rounded, size: 55),
-                );
+        _moduleAction(
+          icon: Icons.collections_outlined,
+          title: 'Photo Gallery',
+          subtitle: 'Add and manage professional work photos.',
+          accent: const Color(0xFFD667FF),
+        ),
+        const SizedBox(height: 10),
 
-                final button = FilledButton.icon(
-                  onPressed: _mediaUploading
-                      ? null
-                      : () => _pickAndUploadProviderMedia('profile'),
-                  icon: const Icon(Icons.add_a_photo_rounded),
-                  label: Text(
-                    _providerProfilePhotoUrl.isEmpty
-                        ? 'ADD PROFILE PHOTO'
-                        : 'CHANGE PROFILE PHOTO',
-                  ),
-                );
-
-                if (mobile) {
-                  return Column(
-                    children: [
-                      photo,
-                      const SizedBox(height: 14),
-                      SizedBox(width: double.infinity, child: button),
-                    ],
-                  );
-                }
-
-                return Row(
-                  children: [
-                    photo,
-                    const SizedBox(width: 18),
-                    Expanded(child: button),
-                  ],
-                );
-              },
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
-          _providerMediaPanel(
-            icon: Icons.collections_outlined,
-            title: 'Photo Gallery',
-            subtitle: 'Professional work, studio and service photos.',
-            accent: const Color(0xFFD667FF),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                FilledButton.icon(
-                  onPressed: _mediaUploading
-                      ? null
-                      : () => _pickAndUploadProviderMedia('photo'),
-                  icon: const Icon(Icons.add_photo_alternate_rounded),
-                  label: const Text('+ ADD PHOTO'),
-                ),
-                const SizedBox(height: 14),
-
-                if (_providerPhotoMedia.isEmpty)
-                  const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(18),
-                      child: Text(
-                        'No gallery photos uploaded yet.',
-                        style: TextStyle(color: Colors.white54),
-                      ),
-                    ),
-                  )
-                else
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: [
-                      for (final media in _providerPhotoMedia)
-                        Stack(
-                          children: [
-                            Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                borderRadius: BorderRadius.circular(16),
-                                onTap: () => _openProviderPhotoViewer(media),
-                                child: Container(
-                                  width: 145,
-                                  height: 145,
-                                  clipBehavior: Clip.antiAlias,
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(16),
-                                    color: const Color(0xFF101522),
-                                  ),
-                                  child: Stack(
-                                    fit: StackFit.expand,
-                                    children: [
-                                      Image.network(
-                                        media['public_url']?.toString() ?? '',
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (_, __, ___) =>
-                                            const Icon(
-                                              Icons.broken_image_outlined,
-                                            ),
-                                      ),
-                                      const Align(
-                                        alignment: Alignment.bottomLeft,
-                                        child: Padding(
-                                          padding: EdgeInsets.all(8),
-                                          child: DecoratedBox(
-                                            decoration: BoxDecoration(
-                                              color: Color(0x99000000),
-                                              shape: BoxShape.circle,
-                                            ),
-                                            child: Padding(
-                                              padding: EdgeInsets.all(7),
-                                              child: Icon(
-                                                Icons.open_in_full_rounded,
-                                                size: 17,
-                                                color: Colors.white,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                            Positioned(
-                              top: 5,
-                              right: 5,
-                              child: IconButton(
-                                onPressed: () => _deleteProviderMedia(media),
-                                icon: const Icon(
-                                  Icons.delete_rounded,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                    ],
-                  ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
-          _providerMediaPanel(
-            icon: Icons.video_library_outlined,
-            title: 'Video Gallery',
-            subtitle: 'Introduction videos, studio tours and provider videos.',
-            accent: const Color(0xFFFF7CC8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                FilledButton.icon(
-                  onPressed: _mediaUploading
-                      ? null
-                      : () => _pickAndUploadProviderMedia('video'),
-                  icon: const Icon(Icons.video_call_rounded),
-                  label: const Text('+ ADD VIDEO'),
-                ),
-                const SizedBox(height: 14),
-
-                if (_providerVideoMedia.isEmpty)
-                  const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(18),
-                      child: Text(
-                        'No videos uploaded yet.',
-                        style: TextStyle(color: Colors.white54),
-                      ),
-                    ),
-                  )
-                else
-                  Column(
-                    children: [
-                      for (final media in _providerVideoMedia)
-                        Card(
-                          color: const Color(0xFF111522),
-                          child: ListTile(
-                            onTap: () => _openProviderVideoViewer(media),
-                            leading: const Icon(
-                              Icons.play_circle_fill_rounded,
-                              color: Color(0xFFFF7CC8),
-                              size: 38,
-                            ),
-                            title: Text(
-                              media['file_name']?.toString() ??
-                                  'Provider Video',
-                            ),
-                            subtitle: const Text(
-                              'Tap to watch',
-                              style: TextStyle(color: Colors.white54),
-                            ),
-                            trailing: IconButton(
-                              tooltip: 'Delete video',
-                              onPressed: () => _deleteProviderMedia(media),
-                              icon: const Icon(Icons.delete_outline_rounded),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-              ],
-            ),
-          ),
-
-          if (_mediaUploading) ...[
-            const SizedBox(height: 14),
-            const LinearProgressIndicator(),
-            const SizedBox(height: 6),
-            const Text(
-              'Uploading media...',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white54),
-            ),
-          ],
-        ],
+        _moduleAction(
+          icon: Icons.video_library_outlined,
+          title: 'Video Gallery',
+          subtitle: 'Add professional provider videos.',
+          accent: const Color(0xFFFF7CC8),
+        ),
       ],
     );
   }

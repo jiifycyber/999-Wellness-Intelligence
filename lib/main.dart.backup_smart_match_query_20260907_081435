@@ -5473,7 +5473,7 @@ class _CustomerV3PageHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: desktop ? 215 : 190,
+      height: desktop ? 215 : 162,
       margin: EdgeInsets.fromLTRB(desktop ? 22 : 9, 14, desktop ? 22 : 9, 12),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(25),
@@ -13635,7 +13635,7 @@ class _CustomerAiSmartMatchScreenState
           .from('provider_profiles')
           .select(
             'id, full_name, professional_name, business_name, bio, '
-            'service_area, available_now, rating, review_count, profile_photo_url',
+            'service_area, available_now, rating, review_count',
           )
           .order('professional_name');
 
