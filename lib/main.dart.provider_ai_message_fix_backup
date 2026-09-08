@@ -18905,9 +18905,6 @@ class _ProviderCommandCenterScreenState
   double _liveWeeklyEarnings = 0;
   double _liveProviderRating = 0;
   int _liveProviderReviewCount = 0;
-  int _liveUnreadMessages = 0;
-  String _liveProviderPhotoUrl = '';
-  List<Map<String, dynamic>> _liveProviderBookings = [];
 
   @override
   void initState() {
@@ -19084,20 +19081,6 @@ class _ProviderCommandCenterScreenState
           .map((row) => Map<String, dynamic>.from(row as Map))
           .toList();
 
-      int unreadMessages = 0;
-
-      try {
-        final messageRaw = await Supabase.instance.client
-            .from('messages')
-            .select('id, read_at')
-            .eq('receiver_id', user.id);
-
-        unreadMessages = (messageRaw as List).where((row) {
-          final message = Map<String, dynamic>.from(row as Map);
-          return message['read_at'] == null;
-        }).length;
-      } catch (_) {}
-
       Map<String, dynamic> provider = <String, dynamic>{};
 
       try {
@@ -19167,10 +19150,6 @@ class _ProviderCommandCenterScreenState
         _liveWeeklyEarnings = weekly;
         _liveProviderRating = _providerRatingFromProfile(provider);
         _liveProviderReviewCount = _providerReviewCountFromProfile(provider);
-        _liveUnreadMessages = unreadMessages;
-        _liveProviderPhotoUrl =
-            provider['profile_photo_url']?.toString().trim() ?? '';
-        _liveProviderBookings = bookings;
         _availableNow = provider['available_now'] != false;
         _providerPulseLoading = false;
       });
@@ -19242,17 +19221,13 @@ class _ProviderCommandCenterScreenState
     );
   }
 
-  Future<void> _openModule(String title) async {
-    await Navigator.of(context).push(
+  void _openModule(String title) {
+    Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) =>
             _ProviderModuleScreen(title: title, providerName: widget.name),
       ),
     );
-
-    if (!mounted) return;
-
-    await _loadProviderCommandCenterData();
   }
 
   void _openProviderFeed() {
@@ -19431,7 +19406,7 @@ class _ProviderCommandCenterScreenState
               _V2SidebarItem(
                 icon: Icons.chat_bubble_outline_rounded,
                 title: 'Messages',
-                trailingDot: _liveUnreadMessages > 0,
+                trailingDot: true,
                 onTap: () => _openModule('Messages'),
               ),
               _V2SidebarItem(
@@ -19635,7 +19610,7 @@ class _ProviderCommandCenterScreenState
 
           _V2TopIcon(
             icon: Icons.notifications_none_rounded,
-            dot: _liveBookingRequests > 0,
+            dot: true,
             onTap: () => _openModule('Notifications'),
           ),
 
@@ -19643,7 +19618,6 @@ class _ProviderCommandCenterScreenState
             const SizedBox(width: 8),
             _V2TopIcon(
               icon: Icons.chat_bubble_outline_rounded,
-              dot: _liveUnreadMessages > 0,
               onTap: () => _openModule('Messages'),
             ),
           ],
@@ -19676,19 +19650,14 @@ class _ProviderCommandCenterScreenState
               ),
               child: Row(
                 children: [
-                  CircleAvatar(
+                  const CircleAvatar(
                     radius: 15,
-                    backgroundColor: const Color(0xFF59388A),
-                    backgroundImage: _liveProviderPhotoUrl.isNotEmpty
-                        ? NetworkImage(_liveProviderPhotoUrl)
-                        : null,
-                    child: _liveProviderPhotoUrl.isEmpty
-                        ? const Icon(
-                            Icons.person_rounded,
-                            size: 17,
-                            color: Colors.white,
-                          )
-                        : null,
+                    backgroundColor: Color(0xFF59388A),
+                    child: Icon(
+                      Icons.person_rounded,
+                      size: 17,
+                      color: Colors.white,
+                    ),
                   ),
                   if (desktop) ...[
                     const SizedBox(width: 8),
@@ -19995,155 +19964,6 @@ class _ProviderCommandCenterScreenState
     );
   }
 
-  bool _commandQueueBookingVisible(Map<String, dynamic> booking) {
-    final status = booking['status']?.toString().trim().toLowerCase() ?? '';
-
-    if (status == 'cancelled' || status == 'completed') {
-      return false;
-    }
-
-    if (status == 'requested') {
-      return true;
-    }
-
-    return _isTodayProviderValue(booking['booking_day']);
-  }
-
-  List<Map<String, dynamic>> _liveCommandQueue() {
-    final rows = _liveProviderBookings
-        .where(_commandQueueBookingVisible)
-        .map((row) => Map<String, dynamic>.from(row))
-        .toList();
-
-    rows.sort((a, b) {
-      final aRequested =
-          a['status']?.toString().trim().toLowerCase() == 'requested';
-
-      final bRequested =
-          b['status']?.toString().trim().toLowerCase() == 'requested';
-
-      if (aRequested != bRequested) {
-        return aRequested ? -1 : 1;
-      }
-
-      final aDay = a['booking_day']?.toString() ?? '';
-      final bDay = b['booking_day']?.toString() ?? '';
-
-      final dayResult = aDay.compareTo(bDay);
-
-      if (dayResult != 0) {
-        return dayResult;
-      }
-
-      final aTime = a['booking_time']?.toString() ?? '';
-      final bTime = b['booking_time']?.toString() ?? '';
-
-      return aTime.compareTo(bTime);
-    });
-
-    return rows.take(5).toList();
-  }
-
-  String _commandQueueTime(Map<String, dynamic> booking) {
-    final raw = booking['booking_time']?.toString().trim() ?? '';
-
-    if (raw.isEmpty) {
-      return 'Time pending';
-    }
-
-    final match = RegExp(r'^(\d{1,2}):(\d{2})').firstMatch(raw);
-
-    if (match == null) {
-      return raw;
-    }
-
-    final hour24 = int.tryParse(match.group(1) ?? '');
-    final minute = match.group(2) ?? '00';
-
-    if (hour24 == null) {
-      return raw;
-    }
-
-    final hour = hour24 == 0
-        ? 12
-        : hour24 > 12
-        ? hour24 - 12
-        : hour24;
-
-    final suffix = hour24 >= 12 ? 'PM' : 'AM';
-
-    return '$hour:$minute $suffix';
-  }
-
-  String _commandQueueTitle(Map<String, dynamic> booking) {
-    final status = booking['status']?.toString().trim().toLowerCase() ?? '';
-
-    final type = booking['service_type']?.toString().trim().toLowerCase() ?? '';
-
-    if (status == 'requested') {
-      return 'New Booking Request';
-    }
-
-    if (status == 'en route') {
-      return 'Provider En Route';
-    }
-
-    if (status == 'arrived') {
-      return 'Arrival Confirmed';
-    }
-
-    if (status == 'in session') {
-      return 'Session In Progress';
-    }
-
-    if (type.contains('mobile')) {
-      return 'Mobile Appointment';
-    }
-
-    return 'Upcoming Appointment';
-  }
-
-  IconData _commandQueueIcon(Map<String, dynamic> booking) {
-    final status = booking['status']?.toString().trim().toLowerCase() ?? '';
-
-    if (status == 'requested') {
-      return Icons.notifications_active_outlined;
-    }
-
-    if (status == 'en route') {
-      return Icons.directions_car_filled_outlined;
-    }
-
-    if (status == 'arrived') {
-      return Icons.location_on_outlined;
-    }
-
-    if (status == 'in session') {
-      return Icons.spa_outlined;
-    }
-
-    return Icons.event_available_rounded;
-  }
-
-  Color _commandQueueColor(Map<String, dynamic> booking) {
-    final status = booking['status']?.toString().trim().toLowerCase() ?? '';
-
-    switch (status) {
-      case 'requested':
-        return const Color(0xFFFFB05A);
-      case 'accepted':
-        return const Color(0xFF47D5FF);
-      case 'en route':
-        return const Color(0xFF9A6AFF);
-      case 'arrived':
-        return const Color(0xFFD667FF);
-      case 'in session':
-        return const Color(0xFFFF7CC8);
-      default:
-        return const Color(0xFF8D7CFF);
-    }
-  }
-
   Widget _bookingQueueCard({
     required IconData icon,
     required String title,
@@ -20151,10 +19971,9 @@ class _ProviderCommandCenterScreenState
     required String time,
     required String status,
     required Color accent,
-    String customer = '',
   }) {
     return InkWell(
-      onTap: () => _openModule('Bookings'),
+      onTap: () => _openModule('Booking Details'),
       borderRadius: BorderRadius.circular(16),
       child: Container(
         padding: const EdgeInsets.all(14),
@@ -20186,8 +20005,6 @@ class _ProviderCommandCenterScreenState
                 children: [
                   Text(
                     title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 12,
@@ -20196,28 +20013,12 @@ class _ProviderCommandCenterScreenState
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '$service - $time',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Colors.white54, fontSize: 9),
+                    '$service • $time',
+                    style: const TextStyle(color: Colors.white38, fontSize: 9),
                   ),
-                  if (customer.trim().isNotEmpty) ...[
-                    const SizedBox(height: 3),
-                    Text(
-                      customer,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Color(0xFF8EA6D8),
-                        fontSize: 8.5,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
                 ],
               ),
             ),
-            const SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
               decoration: BoxDecoration(
@@ -20226,7 +20027,7 @@ class _ProviderCommandCenterScreenState
                 border: Border.all(color: accent.withValues(alpha: .25)),
               ),
               child: Text(
-                status.toUpperCase(),
+                status,
                 style: TextStyle(
                   color: accent,
                   fontSize: 8,
@@ -20242,8 +20043,6 @@ class _ProviderCommandCenterScreenState
   }
 
   Widget _operationsPanel() {
-    final queue = _liveCommandQueue();
-
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -20256,126 +20055,48 @@ class _ProviderCommandCenterScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
+          const Row(
             children: [
-              const Icon(
-                Icons.radar_rounded,
-                color: Color(0xFF8D7CFF),
-                size: 18,
-              ),
-              const SizedBox(width: 9),
-              const Expanded(
-                child: Text(
-                  "TODAY'S COMMAND QUEUE",
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: .8,
-                  ),
-                ),
-              ),
-              IconButton(
-                tooltip: 'Refresh command queue',
-                onPressed: _providerPulseLoading
-                    ? null
-                    : _loadProviderCommandCenterData,
-                icon: const Icon(
-                  Icons.refresh_rounded,
-                  color: Colors.white54,
-                  size: 18,
+              Icon(Icons.radar_rounded, color: Color(0xFF8D7CFF), size: 18),
+              SizedBox(width: 9),
+              Text(
+                'TODAY\'S COMMAND QUEUE',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: .8,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 14),
-          if (_providerPulseLoading)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 35),
-              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-            )
-          else if (queue.isEmpty)
-            Container(
-              padding: const EdgeInsets.all(25),
-              decoration: BoxDecoration(
-                color: const Color(0xFF09111F),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: const Color(0xFF59E6A7).withValues(alpha: .18),
-                ),
-              ),
-              child: const Column(
-                children: [
-                  Icon(
-                    Icons.task_alt_rounded,
-                    color: Color(0xFF59E6A7),
-                    size: 32,
-                  ),
-                  SizedBox(height: 9),
-                  Text(
-                    'COMMAND QUEUE CLEAR',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: .7,
-                    ),
-                  ),
-                  SizedBox(height: 5),
-                  Text(
-                    'No booking requests or active appointments need attention right now.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Colors.white38,
-                      fontSize: 9,
-                      height: 1.4,
-                    ),
-                  ),
-                ],
-              ),
-            )
-          else
-            for (var i = 0; i < queue.length; i++) ...[
-              Builder(
-                builder: (context) {
-                  final booking = queue[i];
-
-                  final service =
-                      booking['service_name']?.toString().trim() ?? '';
-
-                  final customer =
-                      booking['customer_name']?.toString().trim() ?? '';
-
-                  final status =
-                      booking['status']?.toString().trim() ?? 'Requested';
-
-                  return _bookingQueueCard(
-                    icon: _commandQueueIcon(booking),
-                    title: _commandQueueTitle(booking),
-                    service: service.isEmpty ? 'Wellness Service' : service,
-                    time: _commandQueueTime(booking),
-                    status: status,
-                    customer: customer,
-                    accent: _commandQueueColor(booking),
-                  );
-                },
-              ),
-              if (i != queue.length - 1) const SizedBox(height: 9),
-            ],
-          if (!_providerPulseLoading && queue.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            SizedBox(
-              height: 40,
-              child: OutlinedButton.icon(
-                onPressed: () => _openModule('Bookings'),
-                icon: const Icon(Icons.open_in_new_rounded, size: 16),
-                label: const Text(
-                  'OPEN BOOKING COMMAND CENTER',
-                  style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900),
-                ),
-              ),
-            ),
-          ],
+          _bookingQueueCard(
+            icon: Icons.notifications_active_outlined,
+            title: 'New Booking Request',
+            service: 'Deep Tissue',
+            time: '10:30 AM',
+            status: 'REQUESTED',
+            accent: const Color(0xFFFFB05A),
+          ),
+          const SizedBox(height: 9),
+          _bookingQueueCard(
+            icon: Icons.event_available_rounded,
+            title: 'Upcoming Appointment',
+            service: 'Relaxation Session',
+            time: '1:00 PM',
+            status: 'ACCEPTED',
+            accent: const Color(0xFF47D5FF),
+          ),
+          const SizedBox(height: 9),
+          _bookingQueueCard(
+            icon: Icons.directions_car_filled_outlined,
+            title: 'Mobile Appointment',
+            service: 'Wellness Session',
+            time: '4:30 PM',
+            status: 'TODAY',
+            accent: const Color(0xFF9A6AFF),
+          ),
         ],
       ),
     );
@@ -21166,139 +20887,99 @@ class _ProviderVideoViewerState extends State<_ProviderVideoViewer> {
 }
 
 class _ProviderAiRevenuePainter extends CustomPainter {
-  const _ProviderAiRevenuePainter({required this.values});
-
-  final List<double> values;
+  const _ProviderAiRevenuePainter();
 
   @override
   void paint(Canvas canvas, Size size) {
     final gridPaint = Paint()
-      ..color = const Color(0xFF4F66A8).withValues(alpha: .12)
+      ..color = const Color(0xFF7080A8).withValues(alpha: .10)
       ..strokeWidth = 1;
 
-    for (var i = 1; i <= 4; i++) {
-      final y = size.height * i / 5;
+    for (int i = 0; i <= 4; i++) {
+      final y = size.height * i / 4;
 
       canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
     }
 
-    if (values.isEmpty) {
-      return;
+    for (int i = 0; i <= 6; i++) {
+      final x = size.width * i / 6;
+
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
     }
 
-    double maxValue = values.first;
+    final points = <Offset>[
+      Offset(0, size.height * .76),
+      Offset(size.width * .16, size.height * .62),
+      Offset(size.width * .32, size.height * .66),
+      Offset(size.width * .48, size.height * .49),
+      Offset(size.width * .64, size.height * .43),
+      Offset(size.width * .80, size.height * .25),
+      Offset(size.width, size.height * .12),
+    ];
 
-    for (final value in values) {
-      if (value > maxValue) {
-        maxValue = value;
-      }
+    final fillPath = Path()
+      ..moveTo(points.first.dx, size.height)
+      ..lineTo(points.first.dx, points.first.dy);
+
+    for (int i = 1; i < points.length; i++) {
+      fillPath.lineTo(points[i].dx, points[i].dy);
     }
 
-    if (maxValue <= 0) {
-      maxValue = 1;
-    }
-
-    final linePaint = Paint()
-      ..color = const Color(0xFF8B72FF)
-      ..strokeWidth = 2.4
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-
-    final glowPaint = Paint()
-      ..color = const Color(0xFF7458FF).withValues(alpha: .18)
-      ..strokeWidth = 8
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
+    fillPath
+      ..lineTo(points.last.dx, size.height)
+      ..close();
 
     final fillPaint = Paint()
       ..shader = const LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
-        colors: [Color(0x443E55FF), Color(0x003E55FF)],
+        colors: [Color(0x554F7FFF), Color(0x115B3BFF), Color(0x005B3BFF)],
       ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
 
-    final path = Path();
-    final fillPath = Path();
+    canvas.drawPath(fillPath, fillPaint);
 
-    for (var i = 0; i < values.length; i++) {
-      final x = values.length == 1
-          ? size.width / 2
-          : size.width * i / (values.length - 1);
+    final linePath = Path()..moveTo(points.first.dx, points.first.dy);
 
-      final normalized = values[i] / maxValue;
-
-      final y = size.height - 8 - normalized * (size.height - 18);
-
-      if (i == 0) {
-        path.moveTo(x, y);
-        fillPath.moveTo(x, size.height);
-        fillPath.lineTo(x, y);
-      } else {
-        path.lineTo(x, y);
-        fillPath.lineTo(x, y);
-      }
+    for (int i = 1; i < points.length; i++) {
+      linePath.lineTo(points[i].dx, points[i].dy);
     }
 
-    final lastX = values.length == 1 ? size.width / 2 : size.width;
+    final glowPaint = Paint()
+      ..color = const Color(0xFF6D6FFF).withValues(alpha: .26)
+      ..strokeWidth = 7
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
 
-    fillPath.lineTo(lastX, size.height);
-    fillPath.close();
+    canvas.drawPath(linePath, glowPaint);
 
-    canvas.drawPath(fillPath, fillPaint);
-    canvas.drawPath(path, glowPaint);
-    canvas.drawPath(path, linePaint);
+    final linePaint = Paint()
+      ..shader = const LinearGradient(
+        colors: [Color(0xFF54D8FF), Color(0xFF7472FF), Color(0xFFB066FF)],
+      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height))
+      ..strokeWidth = 2.4
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
 
-    final pointPaint = Paint()
-      ..color = const Color(0xFFBFA7FF)
-      ..style = PaintingStyle.fill;
+    canvas.drawPath(linePath, linePaint);
 
-    for (var i = 0; i < values.length; i++) {
-      final x = values.length == 1
-          ? size.width / 2
-          : size.width * i / (values.length - 1);
+    final dotPaint = Paint()..color = const Color(0xFFD7E8FF);
 
-      final normalized = values[i] / maxValue;
-
-      final y = size.height - 8 - normalized * (size.height - 18);
-
-      canvas.drawCircle(Offset(x, y), 2.6, pointPaint);
+    for (final point in points) {
+      canvas.drawCircle(point, 3.1, dotPaint);
     }
   }
 
   @override
   bool shouldRepaint(covariant _ProviderAiRevenuePainter oldDelegate) {
-    if (oldDelegate.values.length != values.length) {
-      return true;
-    }
-
-    for (var i = 0; i < values.length; i++) {
-      if (oldDelegate.values[i] != values[i]) {
-        return true;
-      }
-    }
-
     return false;
   }
 }
 
 class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
-  bool _providerAiRefreshing = false;
-  DateTime? _providerAiLastSync;
-  String? _providerAiSyncError;
-
-  bool _providerAiProfileLoading = false;
-  Map<String, dynamic> _providerAiProfile = <String, dynamic>{};
-
   bool _availableNow = true;
   bool _scheduleLoading = false;
   List<Map<String, dynamic>> _weeklyAvailability = [];
   List<Map<String, dynamic>> _blockedTimes = [];
-
-  int _providerShellBookingRequests = 0;
-  int _providerShellUnreadMessages = 0;
-  String _providerShellPhotoUrl = '';
 
   bool _earningsLoading = false;
   List<Map<String, dynamic>> _paidProviderBookings = [];
@@ -21338,8 +21019,6 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
   void initState() {
     super.initState();
 
-    _loadProviderModuleShellData();
-
     if (widget.title == 'Bookings') {
       _loadProviderBookings();
     }
@@ -21359,63 +21038,6 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
     if (widget.title == 'Messages') {
       _loadProviderMessagingNetwork();
     }
-
-    if (widget.title == 'Agent Duke AI') {
-      _refreshProviderAiLiveData();
-    }
-  }
-
-  Future<void> _loadProviderModuleShellData() async {
-    final user = Supabase.instance.client.auth.currentUser;
-
-    if (user == null) return;
-
-    int bookingRequests = 0;
-    int unreadMessages = 0;
-    String photoUrl = '';
-
-    try {
-      final bookingRaw = await Supabase.instance.client
-          .from('bookings')
-          .select('id, status')
-          .eq('provider_id', user.id);
-
-      bookingRequests = (bookingRaw as List).where((row) {
-        final booking = Map<String, dynamic>.from(row as Map);
-        return booking['status']?.toString().trim().toLowerCase() ==
-            'requested';
-      }).length;
-    } catch (_) {}
-
-    try {
-      final messageRaw = await Supabase.instance.client
-          .from('messages')
-          .select('id, read_at')
-          .eq('receiver_id', user.id);
-
-      unreadMessages = (messageRaw as List).where((row) {
-        final message = Map<String, dynamic>.from(row as Map);
-        return message['read_at'] == null;
-      }).length;
-    } catch (_) {}
-
-    try {
-      final profile = await Supabase.instance.client
-          .from('provider_profiles')
-          .select('profile_photo_url')
-          .eq('id', user.id)
-          .maybeSingle();
-
-      photoUrl = profile?['profile_photo_url']?.toString().trim() ?? '';
-    } catch (_) {}
-
-    if (!mounted) return;
-
-    setState(() {
-      _providerShellBookingRequests = bookingRequests;
-      _providerShellUnreadMessages = unreadMessages;
-      _providerShellPhotoUrl = photoUrl;
-    });
   }
 
   @override
@@ -24458,7 +24080,7 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
           _V2SidebarItem(
             icon: Icons.chat_bubble_outline_rounded,
             title: 'Messages',
-            trailingDot: _providerShellUnreadMessages > 0,
+            trailingDot: true,
             selected: _selected('Messages'),
             onTap: () => _goTo('Messages'),
           ),
@@ -24558,7 +24180,7 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
 
           _V2TopIcon(
             icon: Icons.notifications_none_rounded,
-            dot: _providerShellBookingRequests > 0,
+            dot: true,
             onTap: () => _goTo('Notifications'),
           ),
 
@@ -24566,7 +24188,6 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
 
           _V2TopIcon(
             icon: Icons.chat_bubble_outline_rounded,
-            dot: _providerShellUnreadMessages > 0,
             onTap: () => _goTo('Messages'),
           ),
 
@@ -24587,19 +24208,10 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
               PopupMenuItem(value: 'account', child: Text('Provider Account')),
               PopupMenuItem(value: 'signout', child: Text('Sign Out')),
             ],
-            child: CircleAvatar(
+            child: const CircleAvatar(
               radius: 16,
-              backgroundColor: const Color(0xFF59388A),
-              backgroundImage: _providerShellPhotoUrl.isNotEmpty
-                  ? NetworkImage(_providerShellPhotoUrl)
-                  : null,
-              child: _providerShellPhotoUrl.isEmpty
-                  ? const Icon(
-                      Icons.person_rounded,
-                      size: 18,
-                      color: Colors.white,
-                    )
-                  : null,
+              backgroundColor: Color(0xFF59388A),
+              child: Icon(Icons.person_rounded, size: 18, color: Colors.white),
             ),
           ),
         ],
@@ -26708,448 +26320,6 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
     );
   }
 
-  Future<void> _loadProviderAiProfilePulse() async {
-    final user = Supabase.instance.client.auth.currentUser;
-
-    if (user == null) {
-      return;
-    }
-
-    if (mounted) {
-      setState(() {
-        _providerAiProfileLoading = true;
-      });
-    }
-
-    try {
-      final profile = await Supabase.instance.client
-          .from('provider_profiles')
-          .select(
-            'id, full_name, professional_name, business_name, bio, '
-            'service_area, available_now, profile_photo_url, rating, review_count',
-          )
-          .eq('id', user.id)
-          .maybeSingle();
-
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _providerAiProfile = profile == null
-            ? <String, dynamic>{}
-            : Map<String, dynamic>.from(profile);
-        _providerAiProfileLoading = false;
-      });
-    } catch (_) {
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _providerAiProfileLoading = false;
-      });
-    }
-  }
-
-  double _providerAiProfileRating() {
-    final value = _providerAiProfile['rating'];
-
-    if (value is num) {
-      return value.toDouble();
-    }
-
-    return double.tryParse(value?.toString() ?? '') ?? 0;
-  }
-
-  int _providerAiProfileReviewCount() {
-    final value = _providerAiProfile['review_count'];
-
-    if (value is num) {
-      return value.toInt();
-    }
-
-    return int.tryParse(value?.toString() ?? '') ?? 0;
-  }
-
-  String _providerAiProfileName() {
-    const keys = ['professional_name', 'business_name', 'full_name'];
-
-    for (final key in keys) {
-      final value = _providerAiProfile[key]?.toString().trim() ?? '';
-
-      if (value.isNotEmpty) {
-        return value;
-      }
-    }
-
-    return widget.providerName;
-  }
-
-  int _providerAiProfileCompletion() {
-    var completed = 0;
-    const total = 6;
-
-    final name = _providerAiProfileName();
-    final bio = _providerAiProfile['bio']?.toString().trim() ?? '';
-    final area = _providerAiProfile['service_area']?.toString().trim() ?? '';
-    final photo =
-        _providerAiProfile['profile_photo_url']?.toString().trim() ?? '';
-
-    if (name.trim().isNotEmpty) completed++;
-    if (bio.isNotEmpty) completed++;
-    if (area.isNotEmpty) completed++;
-    if (photo.isNotEmpty || _providerProfilePhotoUrl.isNotEmpty) completed++;
-    if (_providerPhotoMedia.isNotEmpty) completed++;
-    if (_providerVideoMedia.isNotEmpty) completed++;
-
-    return ((completed / total) * 100).round();
-  }
-
-  Future<void> _refreshProviderAiLiveData() async {
-    if (_providerAiRefreshing) {
-      return;
-    }
-
-    if (mounted) {
-      setState(() {
-        _providerAiRefreshing = true;
-        _providerAiSyncError = null;
-      });
-    }
-
-    try {
-      await _loadProviderBookings();
-
-      if (!mounted) return;
-
-      await _loadProviderEarnings();
-
-      if (!mounted) return;
-
-      await _loadScheduleData();
-
-      if (!mounted) return;
-
-      await _loadProviderMessagingNetwork();
-
-      if (!mounted) return;
-
-      await _loadProviderMedia();
-
-      if (!mounted) return;
-
-      await _loadProviderAiProfilePulse();
-
-      if (!mounted) return;
-
-      setState(() {
-        _providerAiRefreshing = false;
-        _providerAiLastSync = DateTime.now();
-        _providerAiSyncError = null;
-      });
-    } catch (error) {
-      if (!mounted) return;
-
-      setState(() {
-        _providerAiRefreshing = false;
-        _providerAiSyncError = error.toString();
-      });
-    }
-  }
-
-  String _providerAiSyncTime() {
-    final sync = _providerAiLastSync;
-
-    if (sync == null) {
-      return _providerAiRefreshing
-          ? 'Synchronizing provider intelligence'
-          : 'Live provider systems ready';
-    }
-
-    final hour = sync.hour == 0
-        ? 12
-        : sync.hour > 12
-        ? sync.hour - 12
-        : sync.hour;
-
-    final minute = sync.minute.toString().padLeft(2, '0');
-    final suffix = sync.hour >= 12 ? 'PM' : 'AM';
-
-    return 'Last synchronized at $hour:$minute $suffix';
-  }
-
-  List<double> _providerAiDailyRevenueSeries({int days = 7}) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-
-    final totals = List<double>.filled(days, 0);
-
-    for (final booking in _paidProviderBookings) {
-      final date = _providerAiBookingDate(booking);
-
-      if (date == null) {
-        continue;
-      }
-
-      final bookingDay = DateTime(date.year, date.month, date.day);
-      final difference = today.difference(bookingDay).inDays;
-
-      if (difference < 0 || difference >= days) {
-        continue;
-      }
-
-      final index = days - 1 - difference;
-      totals[index] += _providerAiBookingRevenue(booking);
-    }
-
-    return totals;
-  }
-
-  String _providerAiDemandInsight() {
-    final requests = _providerAiBookingRequests();
-    final today = _providerAiTodayBookings();
-    final openDays = _providerAiOpenAvailabilityDays();
-    final unread = _providerAiUnreadMessages();
-    final topService = _providerAiTopService();
-
-    if (requests > 0) {
-      return '$requests booking request${requests == 1 ? '' : 's'} '
-          '${requests == 1 ? 'is' : 'are'} waiting for action. '
-          'Responding quickly can improve conversion.';
-    }
-
-    if (openDays == 0) {
-      return 'No active weekly availability is configured. '
-          'Open schedule availability to improve customer discovery.';
-    }
-
-    if (unread > 0) {
-      return '$unread unread customer message${unread == 1 ? '' : 's'} '
-          '${unread == 1 ? 'needs' : 'need'} attention. '
-          'Fast follow-up can help recover booking opportunities.';
-    }
-
-    if (today == 0 && openDays > 0) {
-      return 'No bookings are scheduled today. '
-          'Your strongest current service is $topService. '
-          'Consider promoting it during open availability.';
-    }
-
-    return 'Live demand is synchronized. '
-        '$today booking${today == 1 ? '' : 's'} scheduled today, '
-        '$openDays active availability day${openDays == 1 ? '' : 's'}, '
-        'and $topService is your leading booked service.';
-  }
-
-  Widget _providerAiLiveSyncBanner() {
-    final healthy = _providerAiSyncError == null;
-    final accent = healthy ? const Color(0xFF59E6A7) : const Color(0xFFFF7B8D);
-
-    return Container(
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            accent.withValues(alpha: .11),
-            const Color(0xFF0B1326),
-            const Color(0xFF070D18),
-          ],
-        ),
-        border: Border.all(color: accent.withValues(alpha: .30)),
-        boxShadow: [
-          BoxShadow(color: accent.withValues(alpha: .05), blurRadius: 20),
-        ],
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final compact = constraints.maxWidth < 650;
-
-          final status = Row(
-            children: [
-              Container(
-                width: 11,
-                height: 11,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: accent,
-                  boxShadow: [
-                    BoxShadow(
-                      color: accent.withValues(alpha: .65),
-                      blurRadius: 12,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 11),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _providerAiRefreshing
-                          ? 'LIVE PROVIDER INTELLIGENCE SYNCHRONIZING'
-                          : healthy
-                          ? 'LIVE PROVIDER INTELLIGENCE CONNECTED'
-                          : 'PROVIDER INTELLIGENCE SYNC WARNING',
-                      style: TextStyle(
-                        color: accent,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: .8,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      healthy
-                          ? _providerAiSyncTime()
-                          : 'A live data source could not be synchronized.',
-                      style: const TextStyle(
-                        color: Colors.white54,
-                        fontSize: 9,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          );
-
-          final refresh = SizedBox(
-            height: 39,
-            child: OutlinedButton.icon(
-              onPressed: _providerAiRefreshing
-                  ? null
-                  : _refreshProviderAiLiveData,
-              icon: _providerAiRefreshing
-                  ? const SizedBox(
-                      width: 13,
-                      height: 13,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.sync_rounded, size: 17),
-              label: Text(
-                _providerAiRefreshing ? 'SYNCING' : 'REFRESH LIVE DATA',
-                style: const TextStyle(
-                  fontSize: 9,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ),
-          );
-
-          if (compact) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [status, const SizedBox(height: 12), refresh],
-            );
-          }
-
-          return Row(
-            children: [
-              Expanded(child: status),
-              const SizedBox(width: 15),
-              refresh,
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  Future<void> _showProviderAiMessage(String message) async {
-    if (!mounted) {
-      return;
-    }
-
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF090F20),
-          title: const Row(
-            children: [
-              Icon(Icons.psychology_alt_rounded, color: Color(0xFFB36CFF)),
-              SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'Agent Duke Intelligence',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          content: Container(
-            constraints: const BoxConstraints(maxWidth: 620),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFF15113A),
-                  Color(0xFF0B142A),
-                  Color(0xFF07101D),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(17),
-              border: Border.all(
-                color: const Color(0xFF765CFF).withValues(alpha: .30),
-              ),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: const Color(0xFF6E45FF).withValues(alpha: .20),
-                    border: Border.all(
-                      color: const Color(0xFFA477FF).withValues(alpha: .38),
-                    ),
-                  ),
-                  child: const Icon(
-                    Icons.auto_awesome_rounded,
-                    color: Color(0xFFC3A3FF),
-                    size: 21,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    message,
-                    style: const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 12,
-                      height: 1.55,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            FilledButton.icon(
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-              },
-              icon: const Icon(Icons.check_rounded),
-              label: const Text('Done'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   DateTime? _providerAiDate(dynamic value) {
     final raw = value?.toString().trim() ?? '';
 
@@ -27629,113 +26799,6 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
     return _providerAiBriefing();
   }
 
-  String _providerAiProfileActionTitle() {
-    final service = _providerAiTopService();
-
-    if (service == 'No service data yet') {
-      return 'Complete provider profile';
-    }
-
-    return 'Feature $service';
-  }
-
-  String _providerAiProfileActionDetail() {
-    final service = _providerAiTopService();
-
-    if (service == 'No service data yet') {
-      return 'Add active services so Agent Duke can measure customer demand.';
-    }
-
-    return '$service is your most requested service based on live booking records.';
-  }
-
-  String _providerAiMediaActionTitle() {
-    final totalMedia = _providerPhotoMedia.length + _providerVideoMedia.length;
-
-    if (totalMedia == 0) {
-      return 'Add provider media';
-    }
-
-    if (totalMedia < 4) {
-      return 'Build your media gallery';
-    }
-
-    return 'Refresh provider media';
-  }
-
-  String _providerAiMediaActionDetail() {
-    final photos = _providerPhotoMedia.length;
-    final videos = _providerVideoMedia.length;
-    final totalMedia = photos + videos;
-
-    if (totalMedia == 0) {
-      return 'Your provider gallery has no live photos or videos yet.';
-    }
-
-    return '$photos photo${photos == 1 ? '' : 's'} and '
-        '$videos video${videos == 1 ? '' : 's'} are currently live.';
-  }
-
-  String _providerAiAvailabilityActionTitle() {
-    final days = _providerAiOpenAvailabilityDays();
-
-    if (days == 0) {
-      return 'Open provider availability';
-    }
-
-    if (days < 5) {
-      return 'Expand weekly availability';
-    }
-
-    return 'Availability coverage is strong';
-  }
-
-  String _providerAiAvailabilityActionDetail() {
-    final days = _providerAiOpenAvailabilityDays();
-    final requests = _providerAiBookingRequests();
-
-    if (days == 0) {
-      return 'No active weekly availability is currently configured.';
-    }
-
-    if (requests > 0) {
-      return '$requests booking request${requests == 1 ? '' : 's'} '
-          'currently need attention.';
-    }
-
-    return '$days active availability day${days == 1 ? '' : 's'} configured.';
-  }
-
-  String _providerAiMessageActionTitle() {
-    final unread = _providerAiUnreadMessages();
-
-    if (unread > 0) {
-      return 'Reply to $unread unread message${unread == 1 ? '' : 's'}';
-    }
-
-    if (_providerConversations.isEmpty) {
-      return 'Customer communication ready';
-    }
-
-    return 'Customer messages are current';
-  }
-
-  String _providerAiMessageActionDetail() {
-    final unread = _providerAiUnreadMessages();
-    final conversations = _providerConversations.length;
-
-    if (unread > 0) {
-      return 'Secure communications has customer messages waiting for a response.';
-    }
-
-    if (conversations == 0) {
-      return 'New customer conversations will appear automatically.';
-    }
-
-    return '$conversations customer conversation${conversations == 1 ? '' : 's'} '
-        'connected with no unread messages.';
-  }
-
   Future<void> _showProviderAiQueryDialog() async {
     final controller = TextEditingController();
 
@@ -27802,7 +26865,7 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
 
                 Navigator.of(dialogContext).pop();
 
-                _showProviderAiMessage(_providerAiAnswer(question));
+                showAiMessage(_providerAiAnswer(question));
               },
               icon: const Icon(Icons.send_rounded),
               label: const Text('Ask Agent Duke'),
@@ -28241,7 +27304,9 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
             const SizedBox(height: 10),
             InkWell(
               onTap: () {
-                _showProviderAiQueryDialog();
+                showAiMessage(
+                  'Agent Duke conversation engine will connect to the live AI backend next.',
+                );
               },
               borderRadius: BorderRadius.circular(14),
               child: Container(
@@ -28297,7 +27362,7 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
                 Expanded(
                   child: metricCard(
                     icon: Icons.payments_outlined,
-                    label: 'Paid Today',
+                    label: 'Projected Earnings',
                     value: _providerAiCurrency(_providerAiTodayRevenue()),
                     accent: const Color(0xFF58E0A6),
                   ),
@@ -28310,7 +27375,7 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
                 Expanded(
                   child: metricCard(
                     icon: Icons.schedule_rounded,
-                    label: 'Active Days',
+                    label: 'Open Time Slots',
                     value: _providerAiOpenAvailabilityDays().toString(),
                     accent: const Color(0xFF56E2D2),
                   ),
@@ -28341,18 +27406,18 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
                   color: const Color(0xFFFFC857).withValues(alpha: .22),
                 ),
               ),
-              child: Row(
+              child: const Row(
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.lightbulb_outline_rounded,
                     color: Color(0xFFFFD45D),
                     size: 19,
                   ),
-                  const SizedBox(width: 10),
+                  SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      _providerAiDemandInsight(),
-                      style: const TextStyle(
+                      'Demand intelligence: evening availability can increase booking visibility.',
+                      style: TextStyle(
                         color: Colors.white70,
                         fontSize: 9,
                         height: 1.4,
@@ -28397,9 +27462,7 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
             SizedBox(
               height: 105,
               child: CustomPaint(
-                painter: _ProviderAiRevenuePainter(
-                  values: _providerAiDailyRevenueSeries(),
-                ),
+                painter: _ProviderAiRevenuePainter(),
                 child: const SizedBox.expand(),
               ),
             ),
@@ -28543,32 +27606,32 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
           children: [
             insightRow(
               icon: Icons.description_outlined,
-              title: _providerAiProfileActionTitle(),
-              subtitle: _providerAiProfileActionDetail(),
+              title: 'Update profile headline',
+              subtitle: 'Make your strongest service more visible.',
               accent: const Color(0xFF58D6FF),
               onTap: () => _goTo('Provider Profile'),
             ),
             const SizedBox(height: 8),
             insightRow(
               icon: Icons.image_outlined,
-              title: _providerAiMediaActionTitle(),
-              subtitle: _providerAiMediaActionDetail(),
+              title: 'Post a new media highlight',
+              subtitle: 'Fresh media can improve profile engagement.',
               accent: const Color(0xFF53E2AC),
               onTap: () => _goTo('Photos & Videos'),
             ),
             const SizedBox(height: 8),
             insightRow(
               icon: Icons.calendar_month_outlined,
-              title: _providerAiAvailabilityActionTitle(),
-              subtitle: _providerAiAvailabilityActionDetail(),
+              title: 'Enable evening availability',
+              subtitle: 'Capture additional high-demand windows.',
               accent: const Color(0xFF8B72FF),
               onTap: () => _goTo('Schedule & Availability'),
             ),
             const SizedBox(height: 8),
             insightRow(
               icon: Icons.send_outlined,
-              title: _providerAiMessageActionTitle(),
-              subtitle: _providerAiMessageActionDetail(),
+              title: 'Follow up with recent customers',
+              subtitle: 'Reconnect through secure messaging.',
               accent: const Color(0xFF5FC6FF),
               onTap: () => _goTo('Messages'),
             ),
@@ -28618,7 +27681,7 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
         ],
         onPrimary: _showProviderAiQueryDialog,
         onSecondary: () {
-          _showProviderAiMessage(_providerAiBriefing());
+          showAiMessage(_providerAiBriefing());
         },
       );
     }
@@ -28711,8 +27774,6 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
 
             return Column(
               children: [
-                _providerAiLiveSyncBanner(),
-                const SizedBox(height: 14),
                 chatPanel(),
                 const SizedBox(height: 12),
                 briefingPanel(),

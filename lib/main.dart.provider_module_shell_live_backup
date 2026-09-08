@@ -21296,10 +21296,6 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
   List<Map<String, dynamic>> _weeklyAvailability = [];
   List<Map<String, dynamic>> _blockedTimes = [];
 
-  int _providerShellBookingRequests = 0;
-  int _providerShellUnreadMessages = 0;
-  String _providerShellPhotoUrl = '';
-
   bool _earningsLoading = false;
   List<Map<String, dynamic>> _paidProviderBookings = [];
 
@@ -21338,8 +21334,6 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
   void initState() {
     super.initState();
 
-    _loadProviderModuleShellData();
-
     if (widget.title == 'Bookings') {
       _loadProviderBookings();
     }
@@ -21363,59 +21357,6 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
     if (widget.title == 'Agent Duke AI') {
       _refreshProviderAiLiveData();
     }
-  }
-
-  Future<void> _loadProviderModuleShellData() async {
-    final user = Supabase.instance.client.auth.currentUser;
-
-    if (user == null) return;
-
-    int bookingRequests = 0;
-    int unreadMessages = 0;
-    String photoUrl = '';
-
-    try {
-      final bookingRaw = await Supabase.instance.client
-          .from('bookings')
-          .select('id, status')
-          .eq('provider_id', user.id);
-
-      bookingRequests = (bookingRaw as List).where((row) {
-        final booking = Map<String, dynamic>.from(row as Map);
-        return booking['status']?.toString().trim().toLowerCase() ==
-            'requested';
-      }).length;
-    } catch (_) {}
-
-    try {
-      final messageRaw = await Supabase.instance.client
-          .from('messages')
-          .select('id, read_at')
-          .eq('receiver_id', user.id);
-
-      unreadMessages = (messageRaw as List).where((row) {
-        final message = Map<String, dynamic>.from(row as Map);
-        return message['read_at'] == null;
-      }).length;
-    } catch (_) {}
-
-    try {
-      final profile = await Supabase.instance.client
-          .from('provider_profiles')
-          .select('profile_photo_url')
-          .eq('id', user.id)
-          .maybeSingle();
-
-      photoUrl = profile?['profile_photo_url']?.toString().trim() ?? '';
-    } catch (_) {}
-
-    if (!mounted) return;
-
-    setState(() {
-      _providerShellBookingRequests = bookingRequests;
-      _providerShellUnreadMessages = unreadMessages;
-      _providerShellPhotoUrl = photoUrl;
-    });
   }
 
   @override
@@ -24458,7 +24399,7 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
           _V2SidebarItem(
             icon: Icons.chat_bubble_outline_rounded,
             title: 'Messages',
-            trailingDot: _providerShellUnreadMessages > 0,
+            trailingDot: true,
             selected: _selected('Messages'),
             onTap: () => _goTo('Messages'),
           ),
@@ -24558,7 +24499,7 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
 
           _V2TopIcon(
             icon: Icons.notifications_none_rounded,
-            dot: _providerShellBookingRequests > 0,
+            dot: true,
             onTap: () => _goTo('Notifications'),
           ),
 
@@ -24566,7 +24507,6 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
 
           _V2TopIcon(
             icon: Icons.chat_bubble_outline_rounded,
-            dot: _providerShellUnreadMessages > 0,
             onTap: () => _goTo('Messages'),
           ),
 
@@ -24587,19 +24527,10 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
               PopupMenuItem(value: 'account', child: Text('Provider Account')),
               PopupMenuItem(value: 'signout', child: Text('Sign Out')),
             ],
-            child: CircleAvatar(
+            child: const CircleAvatar(
               radius: 16,
-              backgroundColor: const Color(0xFF59388A),
-              backgroundImage: _providerShellPhotoUrl.isNotEmpty
-                  ? NetworkImage(_providerShellPhotoUrl)
-                  : null,
-              child: _providerShellPhotoUrl.isEmpty
-                  ? const Icon(
-                      Icons.person_rounded,
-                      size: 18,
-                      color: Colors.white,
-                    )
-                  : null,
+              backgroundColor: Color(0xFF59388A),
+              child: Icon(Icons.person_rounded, size: 18, color: Colors.white),
             ),
           ),
         ],

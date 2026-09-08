@@ -1,0 +1,726 @@
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+class CustomerProviderChatScreen extends StatefulWidget {
+  const CustomerProviderChatScreen({
+    super.key,
+    required this.providerName,
+  });
+
+  final String providerName;
+
+  @override
+  State<CustomerProviderChatScreen> createState() =>
+      _CustomerProviderChatScreenState();
+}
+
+class _CustomerProviderChatScreenState
+    extends State<CustomerProviderChatScreen> {
+  final TextEditingController controller = TextEditingController();
+
+  List<Map<String, dynamic>> messages = [];
+
+  String? providerId;
+  bool loading = true;
+  bool sending = false;
+  bool uploadingAttachment = false;
+  String? error;
+
+  @override
+  void initState() {
+    super.initState();
+    loadMessages();
+  }
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> loadMessages() async {
+    final user = Supabase.instance.client.auth.currentUser;
+
+    if (user == null) {
+      if (!mounted) return;
+
+      setState(() {
+        loading = false;
+        error = 'Please sign in to use messaging.';
+      });
+
+      return;
+    }
+
+    try {
+      final provider = await Supabase.instance.client
+          .from('provider_profiles')
+          .select('id')
+          .eq('professional_name', widget.providerName)
+          .maybeSingle();
+
+      final id = provider?['id']?.toString();
+
+      if (id == null || id.isEmpty) {
+        throw Exception('Provider account not found.');
+      }
+
+      final sent = await Supabase.instance.client
+          .from('messages')
+          .select(
+            'id, sender_id, receiver_id, message, read_at, created_at, '
+            'attachment_path, attachment_name, attachment_type',
+          )
+          .eq('sender_id', user.id)
+          .eq('receiver_id', id);
+
+      final received = await Supabase.instance.client
+          .from('messages')
+          .select(
+            'id, sender_id, receiver_id, message, read_at, created_at, '
+            'attachment_path, attachment_name, attachment_type',
+          )
+          .eq('sender_id', id)
+          .eq('receiver_id', user.id);
+
+      final rows = <Map<String, dynamic>>[];
+
+      for (final row in sent as List) {
+        rows.add(Map<String, dynamic>.from(row as Map));
+      }
+
+      for (final row in received as List) {
+        rows.add(Map<String, dynamic>.from(row as Map));
+      }
+
+      rows.sort((a, b) {
+        final left = a['created_at']?.toString() ?? '';
+        final right = b['created_at']?.toString() ?? '';
+
+        return left.compareTo(right);
+      });
+
+      for (final row in rows) {
+        final path = row['attachment_path']?.toString().trim() ?? '';
+
+        if (path.isEmpty) {
+          continue;
+        }
+
+        try {
+          final signedUrl = await Supabase.instance.client.storage
+              .from('chat-media')
+              .createSignedUrl(path, 3600);
+
+          row['_attachment_url'] = signedUrl;
+        } catch (_) {
+          row['_attachment_url'] = null;
+        }
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        providerId = id;
+        messages = rows;
+        loading = false;
+        error = null;
+      });
+    } catch (loadError) {
+      if (!mounted) return;
+
+      setState(() {
+        loading = false;
+        error = 'Unable to load this conversation.';
+      });
+    }
+  }
+
+  Future<void> sendMessage() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    final id = providerId;
+    final body = controller.text.trim();
+
+    if (user == null || id == null || body.isEmpty || sending) {
+      return;
+    }
+
+    setState(() {
+      sending = true;
+    });
+
+    try {
+      await Supabase.instance.client.from('messages').insert({
+        'sender_id': user.id,
+        'receiver_id': id,
+        'message': body,
+      });
+
+      controller.clear();
+
+      await loadMessages();
+    } catch (_) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Message could not be sent.'),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          sending = false;
+        });
+      }
+    }
+  }
+
+  String _safeFileName(String value) {
+    final cleaned = value.replaceAll(
+      RegExp(r'[^A-Za-z0-9._-]'),
+      '_',
+    );
+
+    if (cleaned.isEmpty) {
+      return 'image.jpg';
+    }
+
+    return cleaned;
+  }
+
+  String _mimeTypeFor(String extension) {
+    switch (extension.toLowerCase()) {
+      case 'png':
+        return 'image/png';
+      case 'webp':
+        return 'image/webp';
+      case 'gif':
+        return 'image/gif';
+      case 'heic':
+        return 'image/heic';
+      case 'heif':
+        return 'image/heif';
+      case 'jpg':
+      case 'jpeg':
+      default:
+        return 'image/jpeg';
+    }
+  }
+
+  Future<void> pickAndSendImage() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    final id = providerId;
+
+    if (user == null || id == null || uploadingAttachment) {
+      return;
+    }
+
+    try {
+      final result = await FilePicker.pickFiles(
+        type: FileType.image,
+        allowMultiple: false,
+        withData: true,
+      );
+
+      if (result == null || result.files.isEmpty) {
+        return;
+      }
+
+      final file = result.files.first;
+      final bytes = file.bytes;
+
+      if (bytes == null) {
+        throw Exception('Unable to read selected image.');
+      }
+
+      if (bytes.length > 10485760) {
+        throw Exception('Image must be 10 MB or smaller.');
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        uploadingAttachment = true;
+      });
+
+      final extension = file.extension?.toLowerCase() ?? 'jpg';
+      final safeName = _safeFileName(file.name);
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+
+      final storagePath =
+          '${user.id}/$id/${timestamp}_$safeName';
+
+      await Supabase.instance.client.storage
+          .from('chat-media')
+          .uploadBinary(
+            storagePath,
+            bytes,
+            fileOptions: FileOptions(
+              contentType: _mimeTypeFor(extension),
+              upsert: false,
+            ),
+          );
+
+      try {
+        await Supabase.instance.client.from('messages').insert({
+          'sender_id': user.id,
+          'receiver_id': id,
+          'message': '',
+          'attachment_path': storagePath,
+          'attachment_name': file.name,
+          'attachment_type': 'image',
+        });
+      } catch (messageError) {
+        await Supabase.instance.client.storage
+            .from('chat-media')
+            .remove([storagePath]);
+
+        rethrow;
+      }
+
+      await loadMessages();
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Photo sent.'),
+        ),
+      );
+    } catch (uploadError) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Unable to send photo: $uploadError',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          uploadingAttachment = false;
+        });
+      }
+    }
+  }
+
+  Future<void> openAttachmentMenu() async {
+    if (uploadingAttachment) {
+      return;
+    }
+
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF101522),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  width: 42,
+                  height: 4,
+                  margin: const EdgeInsets.only(
+                    left: 130,
+                    right: 130,
+                    bottom: 20,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                ),
+                const Text(
+                  'ADD TO MESSAGE',
+                  style: TextStyle(
+                    color: Color(0xFFB99CFF),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.1,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                ListTile(
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                  ),
+                  leading: Container(
+                    width: 46,
+                    height: 46,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF7138D9)
+                          .withValues(alpha: 0.22),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: const Color(0xFF9D72FF)
+                            .withValues(alpha: 0.45),
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.photo_library_outlined,
+                      color: Color(0xFFC3A7FF),
+                    ),
+                  ),
+                  title: const Text(
+                    'Photo',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  subtitle: const Text(
+                    'Send a screenshot or image',
+                    style: TextStyle(
+                      color: Colors.white54,
+                    ),
+                  ),
+                  trailing: const Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    color: Color(0xFF9D72FF),
+                    size: 15,
+                  ),
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
+                    pickAndSendImage();
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget buildMessageBubble(
+    Map<String, dynamic> row,
+    String? currentUserId,
+  ) {
+    final mine =
+        row['sender_id']?.toString() == currentUserId;
+
+    final body = row['message']?.toString().trim() ?? '';
+    final attachmentType =
+        row['attachment_type']?.toString() ?? '';
+    final attachmentUrl =
+        row['_attachment_url']?.toString() ?? '';
+
+    final hasImage =
+        attachmentType == 'image' &&
+        attachmentUrl.isNotEmpty;
+
+    return Align(
+      alignment:
+          mine ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 360),
+        margin: const EdgeInsets.symmetric(vertical: 6),
+        padding: hasImage
+            ? const EdgeInsets.all(7)
+            : const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 11,
+              ),
+        decoration: BoxDecoration(
+          gradient: mine
+              ? const LinearGradient(
+                  colors: [
+                    Color(0xFF7A38DD),
+                    Color(0xFF4D2B9D),
+                  ],
+                )
+              : const LinearGradient(
+                  colors: [
+                    Color(0xFF1A2031),
+                    Color(0xFF111623),
+                  ],
+                ),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: mine
+                ? const Color(0xFFAB7CFF)
+                    .withValues(alpha: 0.35)
+                : Colors.white.withValues(alpha: 0.08),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (hasImage)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(13),
+                child: Image.network(
+                  attachmentUrl,
+                  width: 340,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) {
+                    return Container(
+                      width: 340,
+                      height: 150,
+                      alignment: Alignment.center,
+                      color: const Color(0xFF111522),
+                      child: const Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.broken_image_outlined,
+                            color: Colors.white54,
+                            size: 32,
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            'Unable to load image',
+                            style: TextStyle(
+                              color: Colors.white54,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            if (hasImage && body.isNotEmpty)
+              const SizedBox(height: 9),
+            if (body.isNotEmpty)
+              Padding(
+                padding: hasImage
+                    ? const EdgeInsets.fromLTRB(7, 2, 7, 6)
+                    : EdgeInsets.zero,
+                child: Text(
+                  body,
+                  style: const TextStyle(
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final currentUserId =
+        Supabase.instance.client.auth.currentUser?.id;
+
+    final busy = sending || uploadingAttachment;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF05070D),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF0B0E18),
+        foregroundColor: Colors.white,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              widget.providerName,
+              style: const TextStyle(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const Text(
+              'SECURE PROVIDER CHAT',
+              style: TextStyle(
+                color: Color(0xFF8BE7C2),
+                fontSize: 9,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.8,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          IconButton(
+            onPressed: loadMessages,
+            icon: const Icon(Icons.refresh_rounded),
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: loading
+                ? const Center(
+                    child: CircularProgressIndicator(),
+                  )
+                : error != null
+                ? Center(
+                    child: Text(
+                      error!,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                      ),
+                    ),
+                  )
+                : messages.isEmpty
+                ? const Center(
+                    child: Text(
+                      'No messages yet. Start the conversation.',
+                      style: TextStyle(
+                        color: Colors.white54,
+                      ),
+                    ),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: messages.length,
+                    itemBuilder: (context, index) {
+                      return buildMessageBubble(
+                        messages[index],
+                        currentUserId,
+                      );
+                    },
+                  ),
+          ),
+          if (uploadingAttachment)
+            const LinearProgressIndicator(
+              minHeight: 2,
+            ),
+          SafeArea(
+            top: false,
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(
+                12,
+                10,
+                12,
+                12,
+              ),
+              decoration: const BoxDecoration(
+                color: Color(0xFF0B0E18),
+                border: Border(
+                  top: BorderSide(
+                    color: Color(0xFF20273A),
+                  ),
+                ),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [
+                          Color(0xFF7138D9),
+                          Color(0xFF334DDB),
+                        ],
+                      ),
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF7138D9)
+                              .withValues(alpha: 0.35),
+                          blurRadius: 14,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    ),
+                    child: IconButton(
+                      tooltip: 'Add photo',
+                      onPressed:
+                          busy ? null : openAttachmentMenu,
+                      icon: uploadingAttachment
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(
+                              Icons.add_rounded,
+                              color: Colors.white,
+                              size: 27,
+                            ),
+                    ),
+                  ),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: TextField(
+                      controller: controller,
+                      minLines: 1,
+                      maxLines: 5,
+                      style: const TextStyle(
+                        color: Colors.white,
+                      ),
+                      decoration: InputDecoration(
+                        hintText:
+                            'Message ${widget.providerName}',
+                        hintStyle: const TextStyle(
+                          color: Colors.white38,
+                        ),
+                        filled: true,
+                        fillColor: const Color(0xFF151A27),
+                        border: OutlineInputBorder(
+                          borderRadius:
+                              BorderRadius.circular(18),
+                          borderSide: BorderSide.none,
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius:
+                              BorderRadius.circular(18),
+                          borderSide: BorderSide(
+                            color: Colors.white
+                                .withValues(alpha: 0.06),
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius:
+                              BorderRadius.circular(18),
+                          borderSide: const BorderSide(
+                            color: Color(0xFF8055ED),
+                          ),
+                        ),
+                      ),
+                      onSubmitted: (_) => sendMessage(),
+                    ),
+                  ),
+                  const SizedBox(width: 9),
+                  Container(
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Color(0xFF7138D9),
+                          Color(0xFF315FE8),
+                        ],
+                      ),
+                      shape: BoxShape.circle,
+                    ),
+                    child: IconButton(
+                      onPressed:
+                          busy ? null : sendMessage,
+                      icon: sending
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child:
+                                  CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(
+                              Icons.send_rounded,
+                              color: Colors.white,
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

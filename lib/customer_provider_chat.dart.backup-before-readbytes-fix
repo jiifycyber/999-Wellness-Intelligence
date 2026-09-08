@@ -221,7 +221,7 @@ class _CustomerProviderChatScreenState
       }
 
       final file = result.first;
-      final bytes = await file.readAsBytes();
+      final bytes = file.bytes;
 
       if (bytes == null) {
         throw Exception('Unable to read selected image.');

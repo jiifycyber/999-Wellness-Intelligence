@@ -18899,338 +18899,6 @@ class _ProviderCommandCenterScreenState
   bool _availableNow = true;
   int _selectedIndex = 0;
 
-  bool _providerPulseLoading = true;
-  int _liveBookingRequests = 0;
-  int _liveTodayBookings = 0;
-  double _liveWeeklyEarnings = 0;
-  double _liveProviderRating = 0;
-  int _liveProviderReviewCount = 0;
-  int _liveUnreadMessages = 0;
-  String _liveProviderPhotoUrl = '';
-  List<Map<String, dynamic>> _liveProviderBookings = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _loadProviderCommandCenterData();
-  }
-
-  bool _isTodayProviderValue(dynamic value) {
-    final raw = value?.toString().trim() ?? '';
-
-    if (raw.isEmpty) {
-      return false;
-    }
-
-    final now = DateTime.now();
-    final isoDay =
-        '${now.year.toString().padLeft(4, '0')}-'
-        '${now.month.toString().padLeft(2, '0')}-'
-        '${now.day.toString().padLeft(2, '0')}';
-
-    if (raw.startsWith(isoDay) || raw.contains(isoDay)) {
-      return true;
-    }
-
-    final parsed = DateTime.tryParse(raw);
-
-    if (parsed == null) {
-      return false;
-    }
-
-    final local = parsed.toLocal();
-
-    return local.year == now.year &&
-        local.month == now.month &&
-        local.day == now.day;
-  }
-
-  DateTime? _providerBookingDate(Map<String, dynamic> booking) {
-    const keys = [
-      'completed_at',
-      'paid_at',
-      'updated_at',
-      'created_at',
-      'booking_day',
-    ];
-
-    for (final key in keys) {
-      final raw = booking[key]?.toString().trim() ?? '';
-
-      if (raw.isEmpty) {
-        continue;
-      }
-
-      final parsed = DateTime.tryParse(raw);
-
-      if (parsed != null) {
-        return parsed.toLocal();
-      }
-    }
-
-    return null;
-  }
-
-  double _providerBookingAmount(Map<String, dynamic> booking) {
-    const keys = [
-      'provider_amount',
-      'provider_earnings',
-      'net_amount',
-      'amount',
-      'total_amount',
-      'price',
-    ];
-
-    for (final key in keys) {
-      final value = booking[key];
-
-      if (value is num) {
-        return value.toDouble();
-      }
-
-      final parsed = double.tryParse(
-        value?.toString().replaceAll(r'$', '').replaceAll(',', '').trim() ?? '',
-      );
-
-      if (parsed != null) {
-        return parsed;
-      }
-    }
-
-    return 0;
-  }
-
-  String _providerMoney(double amount) {
-    final rounded = amount.round();
-
-    String digits = rounded.abs().toString();
-    final parts = <String>[];
-
-    while (digits.length > 3) {
-      parts.insert(0, digits.substring(digits.length - 3));
-      digits = digits.substring(0, digits.length - 3);
-    }
-
-    parts.insert(0, digits);
-
-    return '${rounded < 0 ? '-' : ''}\$${parts.join(',')}';
-  }
-
-  double _providerRatingFromProfile(Map<String, dynamic> profile) {
-    const keys = ['average_rating', 'rating', 'provider_rating', 'avg_rating'];
-
-    for (final key in keys) {
-      final value = profile[key];
-
-      if (value is num) {
-        return value.toDouble();
-      }
-
-      final parsed = double.tryParse(value?.toString() ?? '');
-
-      if (parsed != null) {
-        return parsed;
-      }
-    }
-
-    return 0;
-  }
-
-  int _providerReviewCountFromProfile(Map<String, dynamic> profile) {
-    const keys = [
-      'review_count',
-      'rating_count',
-      'reviews_count',
-      'total_reviews',
-    ];
-
-    for (final key in keys) {
-      final value = profile[key];
-
-      if (value is num) {
-        return value.toInt();
-      }
-
-      final parsed = int.tryParse(value?.toString() ?? '');
-
-      if (parsed != null) {
-        return parsed;
-      }
-    }
-
-    return 0;
-  }
-
-  Future<void> _loadProviderCommandCenterData() async {
-    final user = Supabase.instance.client.auth.currentUser;
-
-    if (user == null) {
-      if (mounted) {
-        setState(() {
-          _providerPulseLoading = false;
-        });
-      }
-
-      return;
-    }
-
-    try {
-      final bookingRaw = await Supabase.instance.client
-          .from('bookings')
-          .select()
-          .eq('provider_id', user.id);
-
-      final bookings = (bookingRaw as List)
-          .map((row) => Map<String, dynamic>.from(row as Map))
-          .toList();
-
-      int unreadMessages = 0;
-
-      try {
-        final messageRaw = await Supabase.instance.client
-            .from('messages')
-            .select('id, read_at')
-            .eq('receiver_id', user.id);
-
-        unreadMessages = (messageRaw as List).where((row) {
-          final message = Map<String, dynamic>.from(row as Map);
-          return message['read_at'] == null;
-        }).length;
-      } catch (_) {}
-
-      Map<String, dynamic> provider = <String, dynamic>{};
-
-      try {
-        final providerRaw = await Supabase.instance.client
-            .from('provider_profiles')
-            .select()
-            .eq('id', user.id)
-            .maybeSingle();
-
-        if (providerRaw != null) {
-          provider = Map<String, dynamic>.from(providerRaw);
-        }
-      } catch (_) {}
-
-      final now = DateTime.now();
-
-      final startOfWeek = DateTime(
-        now.year,
-        now.month,
-        now.day,
-      ).subtract(Duration(days: now.weekday - 1));
-
-      final endOfWeek = startOfWeek.add(const Duration(days: 7));
-
-      int requests = 0;
-      int today = 0;
-      double weekly = 0;
-
-      for (final booking in bookings) {
-        final status = booking['status']?.toString().trim().toLowerCase() ?? '';
-
-        final paymentStatus =
-            booking['payment_status']?.toString().trim().toLowerCase() ?? '';
-
-        if (status == 'requested') {
-          requests++;
-        }
-
-        if (status != 'cancelled' &&
-            _isTodayProviderValue(booking['booking_day'])) {
-          today++;
-        }
-
-        final bookingDate = _providerBookingDate(booking);
-
-        final paid =
-            paymentStatus == 'paid' ||
-            paymentStatus == 'succeeded' ||
-            paymentStatus == 'complete' ||
-            paymentStatus == 'completed';
-
-        if (paid &&
-            bookingDate != null &&
-            !bookingDate.isBefore(startOfWeek) &&
-            bookingDate.isBefore(endOfWeek)) {
-          weekly += _providerBookingAmount(booking);
-        }
-      }
-
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _liveBookingRequests = requests;
-        _liveTodayBookings = today;
-        _liveWeeklyEarnings = weekly;
-        _liveProviderRating = _providerRatingFromProfile(provider);
-        _liveProviderReviewCount = _providerReviewCountFromProfile(provider);
-        _liveUnreadMessages = unreadMessages;
-        _liveProviderPhotoUrl =
-            provider['profile_photo_url']?.toString().trim() ?? '';
-        _liveProviderBookings = bookings;
-        _availableNow = provider['available_now'] != false;
-        _providerPulseLoading = false;
-      });
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _providerPulseLoading = false;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          behavior: SnackBarBehavior.floating,
-          content: Text('Unable to load provider dashboard: $error'),
-        ),
-      );
-    }
-  }
-
-  Future<void> _setProviderCommandAvailability(bool value) async {
-    final user = Supabase.instance.client.auth.currentUser;
-
-    if (user == null) {
-      return;
-    }
-
-    final previous = _availableNow;
-
-    setState(() {
-      _availableNow = value;
-    });
-
-    try {
-      await Supabase.instance.client
-          .from('provider_profiles')
-          .update({
-            'available_now': value,
-            'updated_at': DateTime.now().toIso8601String(),
-          })
-          .eq('id', user.id);
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _availableNow = previous;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          behavior: SnackBarBehavior.floating,
-          content: Text('Unable to update availability: $error'),
-        ),
-      );
-    }
-  }
-
   Future<void> _signOut() async {
     await Supabase.instance.client.auth.signOut();
 
@@ -19242,17 +18910,13 @@ class _ProviderCommandCenterScreenState
     );
   }
 
-  Future<void> _openModule(String title) async {
-    await Navigator.of(context).push(
+  void _openModule(String title) {
+    Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) =>
             _ProviderModuleScreen(title: title, providerName: widget.name),
       ),
     );
-
-    if (!mounted) return;
-
-    await _loadProviderCommandCenterData();
   }
 
   void _openProviderFeed() {
@@ -19431,7 +19095,7 @@ class _ProviderCommandCenterScreenState
               _V2SidebarItem(
                 icon: Icons.chat_bubble_outline_rounded,
                 title: 'Messages',
-                trailingDot: _liveUnreadMessages > 0,
+                trailingDot: true,
                 onTap: () => _openModule('Messages'),
               ),
               _V2SidebarItem(
@@ -19635,7 +19299,7 @@ class _ProviderCommandCenterScreenState
 
           _V2TopIcon(
             icon: Icons.notifications_none_rounded,
-            dot: _liveBookingRequests > 0,
+            dot: true,
             onTap: () => _openModule('Notifications'),
           ),
 
@@ -19643,7 +19307,6 @@ class _ProviderCommandCenterScreenState
             const SizedBox(width: 8),
             _V2TopIcon(
               icon: Icons.chat_bubble_outline_rounded,
-              dot: _liveUnreadMessages > 0,
               onTap: () => _openModule('Messages'),
             ),
           ],
@@ -19676,19 +19339,14 @@ class _ProviderCommandCenterScreenState
               ),
               child: Row(
                 children: [
-                  CircleAvatar(
+                  const CircleAvatar(
                     radius: 15,
-                    backgroundColor: const Color(0xFF59388A),
-                    backgroundImage: _liveProviderPhotoUrl.isNotEmpty
-                        ? NetworkImage(_liveProviderPhotoUrl)
-                        : null,
-                    child: _liveProviderPhotoUrl.isEmpty
-                        ? const Icon(
-                            Icons.person_rounded,
-                            size: 17,
-                            color: Colors.white,
-                          )
-                        : null,
+                    backgroundColor: Color(0xFF59388A),
+                    child: Icon(
+                      Icons.person_rounded,
+                      size: 17,
+                      color: Colors.white,
+                    ),
                   ),
                   if (desktop) ...[
                     const SizedBox(width: 8),
@@ -19898,7 +19556,11 @@ class _ProviderCommandCenterScreenState
           ),
           Switch(
             value: _availableNow,
-            onChanged: _setProviderCommandAvailability,
+            onChanged: (value) {
+              setState(() {
+                _availableNow = value;
+              });
+            },
           ),
         ],
       ),
@@ -19995,155 +19657,6 @@ class _ProviderCommandCenterScreenState
     );
   }
 
-  bool _commandQueueBookingVisible(Map<String, dynamic> booking) {
-    final status = booking['status']?.toString().trim().toLowerCase() ?? '';
-
-    if (status == 'cancelled' || status == 'completed') {
-      return false;
-    }
-
-    if (status == 'requested') {
-      return true;
-    }
-
-    return _isTodayProviderValue(booking['booking_day']);
-  }
-
-  List<Map<String, dynamic>> _liveCommandQueue() {
-    final rows = _liveProviderBookings
-        .where(_commandQueueBookingVisible)
-        .map((row) => Map<String, dynamic>.from(row))
-        .toList();
-
-    rows.sort((a, b) {
-      final aRequested =
-          a['status']?.toString().trim().toLowerCase() == 'requested';
-
-      final bRequested =
-          b['status']?.toString().trim().toLowerCase() == 'requested';
-
-      if (aRequested != bRequested) {
-        return aRequested ? -1 : 1;
-      }
-
-      final aDay = a['booking_day']?.toString() ?? '';
-      final bDay = b['booking_day']?.toString() ?? '';
-
-      final dayResult = aDay.compareTo(bDay);
-
-      if (dayResult != 0) {
-        return dayResult;
-      }
-
-      final aTime = a['booking_time']?.toString() ?? '';
-      final bTime = b['booking_time']?.toString() ?? '';
-
-      return aTime.compareTo(bTime);
-    });
-
-    return rows.take(5).toList();
-  }
-
-  String _commandQueueTime(Map<String, dynamic> booking) {
-    final raw = booking['booking_time']?.toString().trim() ?? '';
-
-    if (raw.isEmpty) {
-      return 'Time pending';
-    }
-
-    final match = RegExp(r'^(\d{1,2}):(\d{2})').firstMatch(raw);
-
-    if (match == null) {
-      return raw;
-    }
-
-    final hour24 = int.tryParse(match.group(1) ?? '');
-    final minute = match.group(2) ?? '00';
-
-    if (hour24 == null) {
-      return raw;
-    }
-
-    final hour = hour24 == 0
-        ? 12
-        : hour24 > 12
-        ? hour24 - 12
-        : hour24;
-
-    final suffix = hour24 >= 12 ? 'PM' : 'AM';
-
-    return '$hour:$minute $suffix';
-  }
-
-  String _commandQueueTitle(Map<String, dynamic> booking) {
-    final status = booking['status']?.toString().trim().toLowerCase() ?? '';
-
-    final type = booking['service_type']?.toString().trim().toLowerCase() ?? '';
-
-    if (status == 'requested') {
-      return 'New Booking Request';
-    }
-
-    if (status == 'en route') {
-      return 'Provider En Route';
-    }
-
-    if (status == 'arrived') {
-      return 'Arrival Confirmed';
-    }
-
-    if (status == 'in session') {
-      return 'Session In Progress';
-    }
-
-    if (type.contains('mobile')) {
-      return 'Mobile Appointment';
-    }
-
-    return 'Upcoming Appointment';
-  }
-
-  IconData _commandQueueIcon(Map<String, dynamic> booking) {
-    final status = booking['status']?.toString().trim().toLowerCase() ?? '';
-
-    if (status == 'requested') {
-      return Icons.notifications_active_outlined;
-    }
-
-    if (status == 'en route') {
-      return Icons.directions_car_filled_outlined;
-    }
-
-    if (status == 'arrived') {
-      return Icons.location_on_outlined;
-    }
-
-    if (status == 'in session') {
-      return Icons.spa_outlined;
-    }
-
-    return Icons.event_available_rounded;
-  }
-
-  Color _commandQueueColor(Map<String, dynamic> booking) {
-    final status = booking['status']?.toString().trim().toLowerCase() ?? '';
-
-    switch (status) {
-      case 'requested':
-        return const Color(0xFFFFB05A);
-      case 'accepted':
-        return const Color(0xFF47D5FF);
-      case 'en route':
-        return const Color(0xFF9A6AFF);
-      case 'arrived':
-        return const Color(0xFFD667FF);
-      case 'in session':
-        return const Color(0xFFFF7CC8);
-      default:
-        return const Color(0xFF8D7CFF);
-    }
-  }
-
   Widget _bookingQueueCard({
     required IconData icon,
     required String title,
@@ -20151,10 +19664,9 @@ class _ProviderCommandCenterScreenState
     required String time,
     required String status,
     required Color accent,
-    String customer = '',
   }) {
     return InkWell(
-      onTap: () => _openModule('Bookings'),
+      onTap: () => _openModule('Booking Details'),
       borderRadius: BorderRadius.circular(16),
       child: Container(
         padding: const EdgeInsets.all(14),
@@ -20186,8 +19698,6 @@ class _ProviderCommandCenterScreenState
                 children: [
                   Text(
                     title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 12,
@@ -20196,28 +19706,12 @@ class _ProviderCommandCenterScreenState
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '$service - $time',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Colors.white54, fontSize: 9),
+                    '$service • $time',
+                    style: const TextStyle(color: Colors.white38, fontSize: 9),
                   ),
-                  if (customer.trim().isNotEmpty) ...[
-                    const SizedBox(height: 3),
-                    Text(
-                      customer,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Color(0xFF8EA6D8),
-                        fontSize: 8.5,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
                 ],
               ),
             ),
-            const SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
               decoration: BoxDecoration(
@@ -20226,7 +19720,7 @@ class _ProviderCommandCenterScreenState
                 border: Border.all(color: accent.withValues(alpha: .25)),
               ),
               child: Text(
-                status.toUpperCase(),
+                status,
                 style: TextStyle(
                   color: accent,
                   fontSize: 8,
@@ -20242,8 +19736,6 @@ class _ProviderCommandCenterScreenState
   }
 
   Widget _operationsPanel() {
-    final queue = _liveCommandQueue();
-
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -20256,126 +19748,48 @@ class _ProviderCommandCenterScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
+          const Row(
             children: [
-              const Icon(
-                Icons.radar_rounded,
-                color: Color(0xFF8D7CFF),
-                size: 18,
-              ),
-              const SizedBox(width: 9),
-              const Expanded(
-                child: Text(
-                  "TODAY'S COMMAND QUEUE",
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: .8,
-                  ),
-                ),
-              ),
-              IconButton(
-                tooltip: 'Refresh command queue',
-                onPressed: _providerPulseLoading
-                    ? null
-                    : _loadProviderCommandCenterData,
-                icon: const Icon(
-                  Icons.refresh_rounded,
-                  color: Colors.white54,
-                  size: 18,
+              Icon(Icons.radar_rounded, color: Color(0xFF8D7CFF), size: 18),
+              SizedBox(width: 9),
+              Text(
+                'TODAY\'S COMMAND QUEUE',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: .8,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 14),
-          if (_providerPulseLoading)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 35),
-              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-            )
-          else if (queue.isEmpty)
-            Container(
-              padding: const EdgeInsets.all(25),
-              decoration: BoxDecoration(
-                color: const Color(0xFF09111F),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: const Color(0xFF59E6A7).withValues(alpha: .18),
-                ),
-              ),
-              child: const Column(
-                children: [
-                  Icon(
-                    Icons.task_alt_rounded,
-                    color: Color(0xFF59E6A7),
-                    size: 32,
-                  ),
-                  SizedBox(height: 9),
-                  Text(
-                    'COMMAND QUEUE CLEAR',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: .7,
-                    ),
-                  ),
-                  SizedBox(height: 5),
-                  Text(
-                    'No booking requests or active appointments need attention right now.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Colors.white38,
-                      fontSize: 9,
-                      height: 1.4,
-                    ),
-                  ),
-                ],
-              ),
-            )
-          else
-            for (var i = 0; i < queue.length; i++) ...[
-              Builder(
-                builder: (context) {
-                  final booking = queue[i];
-
-                  final service =
-                      booking['service_name']?.toString().trim() ?? '';
-
-                  final customer =
-                      booking['customer_name']?.toString().trim() ?? '';
-
-                  final status =
-                      booking['status']?.toString().trim() ?? 'Requested';
-
-                  return _bookingQueueCard(
-                    icon: _commandQueueIcon(booking),
-                    title: _commandQueueTitle(booking),
-                    service: service.isEmpty ? 'Wellness Service' : service,
-                    time: _commandQueueTime(booking),
-                    status: status,
-                    customer: customer,
-                    accent: _commandQueueColor(booking),
-                  );
-                },
-              ),
-              if (i != queue.length - 1) const SizedBox(height: 9),
-            ],
-          if (!_providerPulseLoading && queue.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            SizedBox(
-              height: 40,
-              child: OutlinedButton.icon(
-                onPressed: () => _openModule('Bookings'),
-                icon: const Icon(Icons.open_in_new_rounded, size: 16),
-                label: const Text(
-                  'OPEN BOOKING COMMAND CENTER',
-                  style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900),
-                ),
-              ),
-            ),
-          ],
+          _bookingQueueCard(
+            icon: Icons.notifications_active_outlined,
+            title: 'New Booking Request',
+            service: 'Deep Tissue',
+            time: '10:30 AM',
+            status: 'REQUESTED',
+            accent: const Color(0xFFFFB05A),
+          ),
+          const SizedBox(height: 9),
+          _bookingQueueCard(
+            icon: Icons.event_available_rounded,
+            title: 'Upcoming Appointment',
+            service: 'Relaxation Session',
+            time: '1:00 PM',
+            status: 'ACCEPTED',
+            accent: const Color(0xFF47D5FF),
+          ),
+          const SizedBox(height: 9),
+          _bookingQueueCard(
+            icon: Icons.directions_car_filled_outlined,
+            title: 'Mobile Appointment',
+            service: 'Wellness Session',
+            time: '4:30 PM',
+            status: 'TODAY',
+            accent: const Color(0xFF9A6AFF),
+          ),
         ],
       ),
     );
@@ -20511,15 +19925,9 @@ class _ProviderCommandCenterScreenState
                           child: _metricCard(
                             width: width,
                             icon: Icons.pending_actions_rounded,
-                            value: _providerPulseLoading
-                                ? '--'
-                                : _liveBookingRequests.toString(),
+                            value: '3',
                             label: 'Booking Requests',
-                            detail: _providerPulseLoading
-                                ? 'Synchronizing live requests'
-                                : _liveBookingRequests == 1
-                                ? '1 request awaiting response'
-                                : '$_liveBookingRequests requests awaiting response',
+                            detail: 'Awaiting your response',
                             accent: const Color(0xFFFFB05A),
                           ),
                         ),
@@ -20532,15 +19940,9 @@ class _ProviderCommandCenterScreenState
                           child: _metricCard(
                             width: width,
                             icon: Icons.calendar_month_rounded,
-                            value: _providerPulseLoading
-                                ? '--'
-                                : _liveTodayBookings.toString(),
+                            value: '5',
                             label: 'Today',
-                            detail: _providerPulseLoading
-                                ? 'Synchronizing schedule'
-                                : _liveTodayBookings == 1
-                                ? '1 appointment scheduled'
-                                : '$_liveTodayBookings appointments scheduled',
+                            detail: 'Appointments scheduled',
                             accent: const Color(0xFF39D6FF),
                           ),
                         ),
@@ -20553,13 +19955,9 @@ class _ProviderCommandCenterScreenState
                           child: _metricCard(
                             width: width,
                             icon: Icons.attach_money_rounded,
-                            value: _providerPulseLoading
-                                ? '--'
-                                : _providerMoney(_liveWeeklyEarnings),
+                            value: '\$1,284',
                             label: 'Weekly Earnings',
-                            detail: _providerPulseLoading
-                                ? 'Synchronizing paid bookings'
-                                : 'Live paid revenue this week',
+                            detail: '+18% from last week',
                             accent: const Color(0xFF59E6A7),
                           ),
                         ),
@@ -20572,17 +19970,9 @@ class _ProviderCommandCenterScreenState
                           child: _metricCard(
                             width: width,
                             icon: Icons.star_rounded,
-                            value: _providerPulseLoading
-                                ? '--'
-                                : _liveProviderRating > 0
-                                ? _liveProviderRating.toStringAsFixed(1)
-                                : 'NEW',
+                            value: '4.9',
                             label: 'Provider Rating',
-                            detail: _providerPulseLoading
-                                ? 'Synchronizing customer feedback'
-                                : _liveProviderReviewCount == 1
-                                ? '1 customer review'
-                                : '$_liveProviderReviewCount customer reviews',
+                            detail: '128 customer reviews',
                             accent: const Color(0xFFD667FF),
                           ),
                         ),
@@ -21166,139 +20556,99 @@ class _ProviderVideoViewerState extends State<_ProviderVideoViewer> {
 }
 
 class _ProviderAiRevenuePainter extends CustomPainter {
-  const _ProviderAiRevenuePainter({required this.values});
-
-  final List<double> values;
+  const _ProviderAiRevenuePainter();
 
   @override
   void paint(Canvas canvas, Size size) {
     final gridPaint = Paint()
-      ..color = const Color(0xFF4F66A8).withValues(alpha: .12)
+      ..color = const Color(0xFF7080A8).withValues(alpha: .10)
       ..strokeWidth = 1;
 
-    for (var i = 1; i <= 4; i++) {
-      final y = size.height * i / 5;
+    for (int i = 0; i <= 4; i++) {
+      final y = size.height * i / 4;
 
       canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
     }
 
-    if (values.isEmpty) {
-      return;
+    for (int i = 0; i <= 6; i++) {
+      final x = size.width * i / 6;
+
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
     }
 
-    double maxValue = values.first;
+    final points = <Offset>[
+      Offset(0, size.height * .76),
+      Offset(size.width * .16, size.height * .62),
+      Offset(size.width * .32, size.height * .66),
+      Offset(size.width * .48, size.height * .49),
+      Offset(size.width * .64, size.height * .43),
+      Offset(size.width * .80, size.height * .25),
+      Offset(size.width, size.height * .12),
+    ];
 
-    for (final value in values) {
-      if (value > maxValue) {
-        maxValue = value;
-      }
+    final fillPath = Path()
+      ..moveTo(points.first.dx, size.height)
+      ..lineTo(points.first.dx, points.first.dy);
+
+    for (int i = 1; i < points.length; i++) {
+      fillPath.lineTo(points[i].dx, points[i].dy);
     }
 
-    if (maxValue <= 0) {
-      maxValue = 1;
-    }
-
-    final linePaint = Paint()
-      ..color = const Color(0xFF8B72FF)
-      ..strokeWidth = 2.4
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-
-    final glowPaint = Paint()
-      ..color = const Color(0xFF7458FF).withValues(alpha: .18)
-      ..strokeWidth = 8
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
+    fillPath
+      ..lineTo(points.last.dx, size.height)
+      ..close();
 
     final fillPaint = Paint()
       ..shader = const LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
-        colors: [Color(0x443E55FF), Color(0x003E55FF)],
+        colors: [Color(0x554F7FFF), Color(0x115B3BFF), Color(0x005B3BFF)],
       ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
 
-    final path = Path();
-    final fillPath = Path();
+    canvas.drawPath(fillPath, fillPaint);
 
-    for (var i = 0; i < values.length; i++) {
-      final x = values.length == 1
-          ? size.width / 2
-          : size.width * i / (values.length - 1);
+    final linePath = Path()..moveTo(points.first.dx, points.first.dy);
 
-      final normalized = values[i] / maxValue;
-
-      final y = size.height - 8 - normalized * (size.height - 18);
-
-      if (i == 0) {
-        path.moveTo(x, y);
-        fillPath.moveTo(x, size.height);
-        fillPath.lineTo(x, y);
-      } else {
-        path.lineTo(x, y);
-        fillPath.lineTo(x, y);
-      }
+    for (int i = 1; i < points.length; i++) {
+      linePath.lineTo(points[i].dx, points[i].dy);
     }
 
-    final lastX = values.length == 1 ? size.width / 2 : size.width;
+    final glowPaint = Paint()
+      ..color = const Color(0xFF6D6FFF).withValues(alpha: .26)
+      ..strokeWidth = 7
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
 
-    fillPath.lineTo(lastX, size.height);
-    fillPath.close();
+    canvas.drawPath(linePath, glowPaint);
 
-    canvas.drawPath(fillPath, fillPaint);
-    canvas.drawPath(path, glowPaint);
-    canvas.drawPath(path, linePaint);
+    final linePaint = Paint()
+      ..shader = const LinearGradient(
+        colors: [Color(0xFF54D8FF), Color(0xFF7472FF), Color(0xFFB066FF)],
+      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height))
+      ..strokeWidth = 2.4
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
 
-    final pointPaint = Paint()
-      ..color = const Color(0xFFBFA7FF)
-      ..style = PaintingStyle.fill;
+    canvas.drawPath(linePath, linePaint);
 
-    for (var i = 0; i < values.length; i++) {
-      final x = values.length == 1
-          ? size.width / 2
-          : size.width * i / (values.length - 1);
+    final dotPaint = Paint()..color = const Color(0xFFD7E8FF);
 
-      final normalized = values[i] / maxValue;
-
-      final y = size.height - 8 - normalized * (size.height - 18);
-
-      canvas.drawCircle(Offset(x, y), 2.6, pointPaint);
+    for (final point in points) {
+      canvas.drawCircle(point, 3.1, dotPaint);
     }
   }
 
   @override
   bool shouldRepaint(covariant _ProviderAiRevenuePainter oldDelegate) {
-    if (oldDelegate.values.length != values.length) {
-      return true;
-    }
-
-    for (var i = 0; i < values.length; i++) {
-      if (oldDelegate.values[i] != values[i]) {
-        return true;
-      }
-    }
-
     return false;
   }
 }
 
 class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
-  bool _providerAiRefreshing = false;
-  DateTime? _providerAiLastSync;
-  String? _providerAiSyncError;
-
-  bool _providerAiProfileLoading = false;
-  Map<String, dynamic> _providerAiProfile = <String, dynamic>{};
-
   bool _availableNow = true;
   bool _scheduleLoading = false;
   List<Map<String, dynamic>> _weeklyAvailability = [];
   List<Map<String, dynamic>> _blockedTimes = [];
-
-  int _providerShellBookingRequests = 0;
-  int _providerShellUnreadMessages = 0;
-  String _providerShellPhotoUrl = '';
 
   bool _earningsLoading = false;
   List<Map<String, dynamic>> _paidProviderBookings = [];
@@ -21338,8 +20688,6 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
   void initState() {
     super.initState();
 
-    _loadProviderModuleShellData();
-
     if (widget.title == 'Bookings') {
       _loadProviderBookings();
     }
@@ -21359,63 +20707,6 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
     if (widget.title == 'Messages') {
       _loadProviderMessagingNetwork();
     }
-
-    if (widget.title == 'Agent Duke AI') {
-      _refreshProviderAiLiveData();
-    }
-  }
-
-  Future<void> _loadProviderModuleShellData() async {
-    final user = Supabase.instance.client.auth.currentUser;
-
-    if (user == null) return;
-
-    int bookingRequests = 0;
-    int unreadMessages = 0;
-    String photoUrl = '';
-
-    try {
-      final bookingRaw = await Supabase.instance.client
-          .from('bookings')
-          .select('id, status')
-          .eq('provider_id', user.id);
-
-      bookingRequests = (bookingRaw as List).where((row) {
-        final booking = Map<String, dynamic>.from(row as Map);
-        return booking['status']?.toString().trim().toLowerCase() ==
-            'requested';
-      }).length;
-    } catch (_) {}
-
-    try {
-      final messageRaw = await Supabase.instance.client
-          .from('messages')
-          .select('id, read_at')
-          .eq('receiver_id', user.id);
-
-      unreadMessages = (messageRaw as List).where((row) {
-        final message = Map<String, dynamic>.from(row as Map);
-        return message['read_at'] == null;
-      }).length;
-    } catch (_) {}
-
-    try {
-      final profile = await Supabase.instance.client
-          .from('provider_profiles')
-          .select('profile_photo_url')
-          .eq('id', user.id)
-          .maybeSingle();
-
-      photoUrl = profile?['profile_photo_url']?.toString().trim() ?? '';
-    } catch (_) {}
-
-    if (!mounted) return;
-
-    setState(() {
-      _providerShellBookingRequests = bookingRequests;
-      _providerShellUnreadMessages = unreadMessages;
-      _providerShellPhotoUrl = photoUrl;
-    });
   }
 
   @override
@@ -24458,7 +23749,7 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
           _V2SidebarItem(
             icon: Icons.chat_bubble_outline_rounded,
             title: 'Messages',
-            trailingDot: _providerShellUnreadMessages > 0,
+            trailingDot: true,
             selected: _selected('Messages'),
             onTap: () => _goTo('Messages'),
           ),
@@ -24558,7 +23849,7 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
 
           _V2TopIcon(
             icon: Icons.notifications_none_rounded,
-            dot: _providerShellBookingRequests > 0,
+            dot: true,
             onTap: () => _goTo('Notifications'),
           ),
 
@@ -24566,7 +23857,6 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
 
           _V2TopIcon(
             icon: Icons.chat_bubble_outline_rounded,
-            dot: _providerShellUnreadMessages > 0,
             onTap: () => _goTo('Messages'),
           ),
 
@@ -24587,19 +23877,10 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
               PopupMenuItem(value: 'account', child: Text('Provider Account')),
               PopupMenuItem(value: 'signout', child: Text('Sign Out')),
             ],
-            child: CircleAvatar(
+            child: const CircleAvatar(
               radius: 16,
-              backgroundColor: const Color(0xFF59388A),
-              backgroundImage: _providerShellPhotoUrl.isNotEmpty
-                  ? NetworkImage(_providerShellPhotoUrl)
-                  : null,
-              child: _providerShellPhotoUrl.isEmpty
-                  ? const Icon(
-                      Icons.person_rounded,
-                      size: 18,
-                      color: Colors.white,
-                    )
-                  : null,
+              backgroundColor: Color(0xFF59388A),
+              child: Icon(Icons.person_rounded, size: 18, color: Colors.white),
             ),
           ),
         ],
@@ -26708,1239 +25989,6 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
     );
   }
 
-  Future<void> _loadProviderAiProfilePulse() async {
-    final user = Supabase.instance.client.auth.currentUser;
-
-    if (user == null) {
-      return;
-    }
-
-    if (mounted) {
-      setState(() {
-        _providerAiProfileLoading = true;
-      });
-    }
-
-    try {
-      final profile = await Supabase.instance.client
-          .from('provider_profiles')
-          .select(
-            'id, full_name, professional_name, business_name, bio, '
-            'service_area, available_now, profile_photo_url, rating, review_count',
-          )
-          .eq('id', user.id)
-          .maybeSingle();
-
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _providerAiProfile = profile == null
-            ? <String, dynamic>{}
-            : Map<String, dynamic>.from(profile);
-        _providerAiProfileLoading = false;
-      });
-    } catch (_) {
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _providerAiProfileLoading = false;
-      });
-    }
-  }
-
-  double _providerAiProfileRating() {
-    final value = _providerAiProfile['rating'];
-
-    if (value is num) {
-      return value.toDouble();
-    }
-
-    return double.tryParse(value?.toString() ?? '') ?? 0;
-  }
-
-  int _providerAiProfileReviewCount() {
-    final value = _providerAiProfile['review_count'];
-
-    if (value is num) {
-      return value.toInt();
-    }
-
-    return int.tryParse(value?.toString() ?? '') ?? 0;
-  }
-
-  String _providerAiProfileName() {
-    const keys = ['professional_name', 'business_name', 'full_name'];
-
-    for (final key in keys) {
-      final value = _providerAiProfile[key]?.toString().trim() ?? '';
-
-      if (value.isNotEmpty) {
-        return value;
-      }
-    }
-
-    return widget.providerName;
-  }
-
-  int _providerAiProfileCompletion() {
-    var completed = 0;
-    const total = 6;
-
-    final name = _providerAiProfileName();
-    final bio = _providerAiProfile['bio']?.toString().trim() ?? '';
-    final area = _providerAiProfile['service_area']?.toString().trim() ?? '';
-    final photo =
-        _providerAiProfile['profile_photo_url']?.toString().trim() ?? '';
-
-    if (name.trim().isNotEmpty) completed++;
-    if (bio.isNotEmpty) completed++;
-    if (area.isNotEmpty) completed++;
-    if (photo.isNotEmpty || _providerProfilePhotoUrl.isNotEmpty) completed++;
-    if (_providerPhotoMedia.isNotEmpty) completed++;
-    if (_providerVideoMedia.isNotEmpty) completed++;
-
-    return ((completed / total) * 100).round();
-  }
-
-  Future<void> _refreshProviderAiLiveData() async {
-    if (_providerAiRefreshing) {
-      return;
-    }
-
-    if (mounted) {
-      setState(() {
-        _providerAiRefreshing = true;
-        _providerAiSyncError = null;
-      });
-    }
-
-    try {
-      await _loadProviderBookings();
-
-      if (!mounted) return;
-
-      await _loadProviderEarnings();
-
-      if (!mounted) return;
-
-      await _loadScheduleData();
-
-      if (!mounted) return;
-
-      await _loadProviderMessagingNetwork();
-
-      if (!mounted) return;
-
-      await _loadProviderMedia();
-
-      if (!mounted) return;
-
-      await _loadProviderAiProfilePulse();
-
-      if (!mounted) return;
-
-      setState(() {
-        _providerAiRefreshing = false;
-        _providerAiLastSync = DateTime.now();
-        _providerAiSyncError = null;
-      });
-    } catch (error) {
-      if (!mounted) return;
-
-      setState(() {
-        _providerAiRefreshing = false;
-        _providerAiSyncError = error.toString();
-      });
-    }
-  }
-
-  String _providerAiSyncTime() {
-    final sync = _providerAiLastSync;
-
-    if (sync == null) {
-      return _providerAiRefreshing
-          ? 'Synchronizing provider intelligence'
-          : 'Live provider systems ready';
-    }
-
-    final hour = sync.hour == 0
-        ? 12
-        : sync.hour > 12
-        ? sync.hour - 12
-        : sync.hour;
-
-    final minute = sync.minute.toString().padLeft(2, '0');
-    final suffix = sync.hour >= 12 ? 'PM' : 'AM';
-
-    return 'Last synchronized at $hour:$minute $suffix';
-  }
-
-  List<double> _providerAiDailyRevenueSeries({int days = 7}) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-
-    final totals = List<double>.filled(days, 0);
-
-    for (final booking in _paidProviderBookings) {
-      final date = _providerAiBookingDate(booking);
-
-      if (date == null) {
-        continue;
-      }
-
-      final bookingDay = DateTime(date.year, date.month, date.day);
-      final difference = today.difference(bookingDay).inDays;
-
-      if (difference < 0 || difference >= days) {
-        continue;
-      }
-
-      final index = days - 1 - difference;
-      totals[index] += _providerAiBookingRevenue(booking);
-    }
-
-    return totals;
-  }
-
-  String _providerAiDemandInsight() {
-    final requests = _providerAiBookingRequests();
-    final today = _providerAiTodayBookings();
-    final openDays = _providerAiOpenAvailabilityDays();
-    final unread = _providerAiUnreadMessages();
-    final topService = _providerAiTopService();
-
-    if (requests > 0) {
-      return '$requests booking request${requests == 1 ? '' : 's'} '
-          '${requests == 1 ? 'is' : 'are'} waiting for action. '
-          'Responding quickly can improve conversion.';
-    }
-
-    if (openDays == 0) {
-      return 'No active weekly availability is configured. '
-          'Open schedule availability to improve customer discovery.';
-    }
-
-    if (unread > 0) {
-      return '$unread unread customer message${unread == 1 ? '' : 's'} '
-          '${unread == 1 ? 'needs' : 'need'} attention. '
-          'Fast follow-up can help recover booking opportunities.';
-    }
-
-    if (today == 0 && openDays > 0) {
-      return 'No bookings are scheduled today. '
-          'Your strongest current service is $topService. '
-          'Consider promoting it during open availability.';
-    }
-
-    return 'Live demand is synchronized. '
-        '$today booking${today == 1 ? '' : 's'} scheduled today, '
-        '$openDays active availability day${openDays == 1 ? '' : 's'}, '
-        'and $topService is your leading booked service.';
-  }
-
-  Widget _providerAiLiveSyncBanner() {
-    final healthy = _providerAiSyncError == null;
-    final accent = healthy ? const Color(0xFF59E6A7) : const Color(0xFFFF7B8D);
-
-    return Container(
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            accent.withValues(alpha: .11),
-            const Color(0xFF0B1326),
-            const Color(0xFF070D18),
-          ],
-        ),
-        border: Border.all(color: accent.withValues(alpha: .30)),
-        boxShadow: [
-          BoxShadow(color: accent.withValues(alpha: .05), blurRadius: 20),
-        ],
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final compact = constraints.maxWidth < 650;
-
-          final status = Row(
-            children: [
-              Container(
-                width: 11,
-                height: 11,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: accent,
-                  boxShadow: [
-                    BoxShadow(
-                      color: accent.withValues(alpha: .65),
-                      blurRadius: 12,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 11),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _providerAiRefreshing
-                          ? 'LIVE PROVIDER INTELLIGENCE SYNCHRONIZING'
-                          : healthy
-                          ? 'LIVE PROVIDER INTELLIGENCE CONNECTED'
-                          : 'PROVIDER INTELLIGENCE SYNC WARNING',
-                      style: TextStyle(
-                        color: accent,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: .8,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      healthy
-                          ? _providerAiSyncTime()
-                          : 'A live data source could not be synchronized.',
-                      style: const TextStyle(
-                        color: Colors.white54,
-                        fontSize: 9,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          );
-
-          final refresh = SizedBox(
-            height: 39,
-            child: OutlinedButton.icon(
-              onPressed: _providerAiRefreshing
-                  ? null
-                  : _refreshProviderAiLiveData,
-              icon: _providerAiRefreshing
-                  ? const SizedBox(
-                      width: 13,
-                      height: 13,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.sync_rounded, size: 17),
-              label: Text(
-                _providerAiRefreshing ? 'SYNCING' : 'REFRESH LIVE DATA',
-                style: const TextStyle(
-                  fontSize: 9,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ),
-          );
-
-          if (compact) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [status, const SizedBox(height: 12), refresh],
-            );
-          }
-
-          return Row(
-            children: [
-              Expanded(child: status),
-              const SizedBox(width: 15),
-              refresh,
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  Future<void> _showProviderAiMessage(String message) async {
-    if (!mounted) {
-      return;
-    }
-
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF090F20),
-          title: const Row(
-            children: [
-              Icon(Icons.psychology_alt_rounded, color: Color(0xFFB36CFF)),
-              SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'Agent Duke Intelligence',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          content: Container(
-            constraints: const BoxConstraints(maxWidth: 620),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFF15113A),
-                  Color(0xFF0B142A),
-                  Color(0xFF07101D),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(17),
-              border: Border.all(
-                color: const Color(0xFF765CFF).withValues(alpha: .30),
-              ),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: const Color(0xFF6E45FF).withValues(alpha: .20),
-                    border: Border.all(
-                      color: const Color(0xFFA477FF).withValues(alpha: .38),
-                    ),
-                  ),
-                  child: const Icon(
-                    Icons.auto_awesome_rounded,
-                    color: Color(0xFFC3A3FF),
-                    size: 21,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    message,
-                    style: const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 12,
-                      height: 1.55,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            FilledButton.icon(
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-              },
-              icon: const Icon(Icons.check_rounded),
-              label: const Text('Done'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  DateTime? _providerAiDate(dynamic value) {
-    final raw = value?.toString().trim() ?? '';
-
-    if (raw.isEmpty) {
-      return null;
-    }
-
-    final parsed = DateTime.tryParse(raw);
-
-    if (parsed != null) {
-      return parsed.toLocal();
-    }
-
-    return null;
-  }
-
-  bool _providerAiIsToday(dynamic value) {
-    final raw = value?.toString().trim() ?? '';
-
-    if (raw.isEmpty) {
-      return false;
-    }
-
-    final now = DateTime.now();
-
-    final isoDay =
-        '${now.year.toString().padLeft(4, '0')}-'
-        '${now.month.toString().padLeft(2, '0')}-'
-        '${now.day.toString().padLeft(2, '0')}';
-
-    if (raw.startsWith(isoDay) || raw.contains(isoDay)) {
-      return true;
-    }
-
-    final parsed = _providerAiDate(value);
-
-    if (parsed == null) {
-      return false;
-    }
-
-    return parsed.year == now.year &&
-        parsed.month == now.month &&
-        parsed.day == now.day;
-  }
-
-  DateTime? _providerAiBookingDate(Map<String, dynamic> booking) {
-    const keys = [
-      'completed_at',
-      'paid_at',
-      'booking_day',
-      'updated_at',
-      'created_at',
-    ];
-
-    for (final key in keys) {
-      final parsed = _providerAiDate(booking[key]);
-
-      if (parsed != null) {
-        return parsed;
-      }
-    }
-
-    return null;
-  }
-
-  double _providerAiMoneyValue(dynamic value) {
-    if (value is num) {
-      return value.toDouble();
-    }
-
-    return double.tryParse(
-          value?.toString().replaceAll(r'$', '').replaceAll(',', '').trim() ??
-              '',
-        ) ??
-        0;
-  }
-
-  double _providerAiBookingRevenue(Map<String, dynamic> booking) {
-    const keys = [
-      'provider_amount',
-      'provider_earnings',
-      'net_amount',
-      'amount',
-      'total_amount',
-      'price',
-    ];
-
-    for (final key in keys) {
-      final amount = _providerAiMoneyValue(booking[key]);
-
-      if (amount > 0) {
-        return amount;
-      }
-    }
-
-    return 0;
-  }
-
-  String _providerAiCurrency(double value) {
-    final amount = value.round();
-    final negative = amount < 0;
-    var digits = amount.abs().toString();
-    final groups = <String>[];
-
-    while (digits.length > 3) {
-      groups.insert(0, digits.substring(digits.length - 3));
-      digits = digits.substring(0, digits.length - 3);
-    }
-
-    groups.insert(0, digits);
-
-    return '${negative ? '-' : ''}\$${groups.join(',')}';
-  }
-
-  int _providerAiTodayBookings() {
-    return _providerBookings.where((booking) {
-      final status = booking['status']?.toString().toLowerCase() ?? '';
-
-      if (status == 'cancelled') {
-        return false;
-      }
-
-      return _providerAiIsToday(booking['booking_day']);
-    }).length;
-  }
-
-  int _providerAiBookingRequests() {
-    return _providerBookings.where((booking) {
-      return booking['status']?.toString().toLowerCase() == 'requested';
-    }).length;
-  }
-
-  int _providerAiCompletedSessions() {
-    return _providerBookings.where((booking) {
-      return booking['status']?.toString().toLowerCase() == 'completed';
-    }).length;
-  }
-
-  double _providerAiThisWeekRevenue() {
-    final now = DateTime.now();
-
-    final start = DateTime(
-      now.year,
-      now.month,
-      now.day,
-    ).subtract(Duration(days: now.weekday - 1));
-
-    final end = start.add(const Duration(days: 7));
-
-    double total = 0;
-
-    for (final booking in _paidProviderBookings) {
-      final date = _providerAiBookingDate(booking);
-
-      if (date == null) {
-        continue;
-      }
-
-      if (!date.isBefore(start) && date.isBefore(end)) {
-        total += _providerAiBookingRevenue(booking);
-      }
-    }
-
-    return total;
-  }
-
-  double _providerAiLastWeekRevenue() {
-    final now = DateTime.now();
-
-    final thisWeek = DateTime(
-      now.year,
-      now.month,
-      now.day,
-    ).subtract(Duration(days: now.weekday - 1));
-
-    final start = thisWeek.subtract(const Duration(days: 7));
-    final end = thisWeek;
-
-    double total = 0;
-
-    for (final booking in _paidProviderBookings) {
-      final date = _providerAiBookingDate(booking);
-
-      if (date == null) {
-        continue;
-      }
-
-      if (!date.isBefore(start) && date.isBefore(end)) {
-        total += _providerAiBookingRevenue(booking);
-      }
-    }
-
-    return total;
-  }
-
-  double _providerAiTodayRevenue() {
-    double total = 0;
-
-    for (final booking in _paidProviderBookings) {
-      final date = _providerAiBookingDate(booking);
-
-      if (date == null) {
-        continue;
-      }
-
-      final now = DateTime.now();
-
-      if (date.year == now.year &&
-          date.month == now.month &&
-          date.day == now.day) {
-        total += _providerAiBookingRevenue(booking);
-      }
-    }
-
-    return total;
-  }
-
-  double _providerAiAverageSession() {
-    if (_paidProviderBookings.isEmpty) {
-      return 0;
-    }
-
-    double total = 0;
-    int count = 0;
-
-    for (final booking in _paidProviderBookings) {
-      final amount = _providerAiBookingRevenue(booking);
-
-      if (amount > 0) {
-        total += amount;
-        count++;
-      }
-    }
-
-    if (count == 0) {
-      return 0;
-    }
-
-    return total / count;
-  }
-
-  double _providerAiRevenueChange() {
-    final current = _providerAiThisWeekRevenue();
-    final previous = _providerAiLastWeekRevenue();
-
-    if (previous <= 0) {
-      return current > 0 ? 100 : 0;
-    }
-
-    return ((current - previous) / previous) * 100;
-  }
-
-  String _providerAiRevenueTrendLabel() {
-    final change = _providerAiRevenueChange();
-
-    if (change > 0.5) {
-      return 'Revenue trend improving';
-    }
-
-    if (change < -0.5) {
-      return 'Revenue below last week';
-    }
-
-    return 'Revenue holding steady';
-  }
-
-  String _providerAiRevenueTrendPercent() {
-    final value = _providerAiRevenueChange();
-
-    if (value > 0) {
-      return '+${value.toStringAsFixed(0)}%';
-    }
-
-    return '${value.toStringAsFixed(0)}%';
-  }
-
-  int _providerAiUnreadMessages() {
-    int total = 0;
-
-    for (final conversation in _providerConversations) {
-      final unread = conversation['unread_count'];
-
-      if (unread is num) {
-        total += unread.toInt();
-      } else {
-        total += int.tryParse(unread?.toString() ?? '') ?? 0;
-      }
-    }
-
-    return total;
-  }
-
-  int _providerAiOpenAvailabilityDays() {
-    return _weeklyAvailability.where((row) {
-      return row['enabled'] != false;
-    }).length;
-  }
-
-  String _providerAiCustomerKey(Map<String, dynamic> booking) {
-    const keys = [
-      'customer_id',
-      'customer_email',
-      'customer_phone',
-      'customer_name',
-    ];
-
-    for (final key in keys) {
-      final value = booking[key]?.toString().trim() ?? '';
-
-      if (value.isNotEmpty) {
-        return value.toLowerCase();
-      }
-    }
-
-    return '';
-  }
-
-  int _providerAiRepeatClients() {
-    final counts = <String, int>{};
-
-    for (final booking in _providerBookings) {
-      final key = _providerAiCustomerKey(booking);
-
-      if (key.isEmpty) {
-        continue;
-      }
-
-      counts[key] = (counts[key] ?? 0) + 1;
-    }
-
-    return counts.values.where((count) => count > 1).length;
-  }
-
-  double _providerAiRepeatRate() {
-    final counts = <String, int>{};
-
-    for (final booking in _providerBookings) {
-      final key = _providerAiCustomerKey(booking);
-
-      if (key.isEmpty) {
-        continue;
-      }
-
-      counts[key] = (counts[key] ?? 0) + 1;
-    }
-
-    if (counts.isEmpty) {
-      return 0;
-    }
-
-    final repeat = counts.values.where((count) => count > 1).length;
-
-    return repeat / counts.length * 100;
-  }
-
-  String _providerAiTopService() {
-    final counts = <String, int>{};
-
-    for (final booking in _providerBookings) {
-      final service = booking['service_name']?.toString().trim() ?? '';
-
-      if (service.isEmpty) {
-        continue;
-      }
-
-      counts[service] = (counts[service] ?? 0) + 1;
-    }
-
-    if (counts.isEmpty) {
-      return 'No service data yet';
-    }
-
-    String best = counts.keys.first;
-    int bestCount = counts[best] ?? 0;
-
-    for (final entry in counts.entries) {
-      if (entry.value > bestCount) {
-        best = entry.key;
-        bestCount = entry.value;
-      }
-    }
-
-    return best;
-  }
-
-  String _providerAiScheduleHeadline() {
-    final openDays = _providerAiOpenAvailabilityDays();
-    final requests = _providerAiBookingRequests();
-
-    if (openDays == 0) {
-      return 'Add provider availability';
-    }
-
-    if (requests > 0) {
-      return '$requests booking request${requests == 1 ? '' : 's'} need attention';
-    }
-
-    if (openDays < 5) {
-      return 'Expand weekly availability';
-    }
-
-    return 'Schedule coverage looks healthy';
-  }
-
-  String _providerAiScheduleDetail() {
-    final openDays = _providerAiOpenAvailabilityDays();
-
-    if (openDays == 0) {
-      return 'Customers cannot see regular weekly availability yet.';
-    }
-
-    return '$openDays active availability day${openDays == 1 ? '' : 's'} configured.';
-  }
-
-  String _providerAiBriefing() {
-    return 'Today you have ${_providerAiTodayBookings()} scheduled bookings, '
-        '${_providerAiBookingRequests()} open booking requests, '
-        '${_providerAiUnreadMessages()} unread messages, '
-        '${_providerAiOpenAvailabilityDays()} active availability days, '
-        'and ${_providerAiCurrency(_providerAiThisWeekRevenue())} in paid revenue this week.';
-  }
-
-  String _providerAiAnswer(String question) {
-    final q = question.toLowerCase().trim();
-
-    if (q.contains('earning') ||
-        q.contains('revenue') ||
-        q.contains('money') ||
-        q.contains('income')) {
-      return 'Revenue intelligence: '
-          '${_providerAiCurrency(_providerAiTodayRevenue())} paid today and '
-          '${_providerAiCurrency(_providerAiThisWeekRevenue())} paid this week. '
-          'Average paid session value is '
-          '${_providerAiCurrency(_providerAiAverageSession())}. '
-          'Week-over-week change is ${_providerAiRevenueTrendPercent()}.';
-    }
-
-    if (q.contains('booking') ||
-        q.contains('appointment') ||
-        q.contains('request')) {
-      return 'Booking intelligence: '
-          '${_providerAiTodayBookings()} appointments are scheduled today, '
-          '${_providerAiBookingRequests()} requests are awaiting action, and '
-          '${_providerAiCompletedSessions()} sessions are currently recorded as completed.';
-    }
-
-    if (q.contains('schedule') ||
-        q.contains('availability') ||
-        q.contains('slot') ||
-        q.contains('hour')) {
-      return 'Schedule intelligence: ${_providerAiScheduleHeadline()}. '
-          '${_providerAiScheduleDetail()}';
-    }
-
-    if (q.contains('message') ||
-        q.contains('customer') ||
-        q.contains('client')) {
-      return 'Customer intelligence: '
-          '${_providerAiUnreadMessages()} unread messages, '
-          '${_providerAiRepeatClients()} repeat customers, and '
-          '${_providerAiTopService()} is currently your most requested service.';
-    }
-
-    if (q.contains('service') ||
-        q.contains('popular') ||
-        q.contains('demand')) {
-      return 'Demand intelligence: ${_providerAiTopService()} is currently '
-          'your most frequently booked service based on live booking records.';
-    }
-
-    if (q.contains('profile')) {
-      return 'Profile intelligence: keep your strongest service, current media, '
-          'service area, availability, and professional bio visible. '
-          'Your current top booked service is ${_providerAiTopService()}.';
-    }
-
-    return _providerAiBriefing();
-  }
-
-  String _providerAiProfileActionTitle() {
-    final service = _providerAiTopService();
-
-    if (service == 'No service data yet') {
-      return 'Complete provider profile';
-    }
-
-    return 'Feature $service';
-  }
-
-  String _providerAiProfileActionDetail() {
-    final service = _providerAiTopService();
-
-    if (service == 'No service data yet') {
-      return 'Add active services so Agent Duke can measure customer demand.';
-    }
-
-    return '$service is your most requested service based on live booking records.';
-  }
-
-  String _providerAiMediaActionTitle() {
-    final totalMedia = _providerPhotoMedia.length + _providerVideoMedia.length;
-
-    if (totalMedia == 0) {
-      return 'Add provider media';
-    }
-
-    if (totalMedia < 4) {
-      return 'Build your media gallery';
-    }
-
-    return 'Refresh provider media';
-  }
-
-  String _providerAiMediaActionDetail() {
-    final photos = _providerPhotoMedia.length;
-    final videos = _providerVideoMedia.length;
-    final totalMedia = photos + videos;
-
-    if (totalMedia == 0) {
-      return 'Your provider gallery has no live photos or videos yet.';
-    }
-
-    return '$photos photo${photos == 1 ? '' : 's'} and '
-        '$videos video${videos == 1 ? '' : 's'} are currently live.';
-  }
-
-  String _providerAiAvailabilityActionTitle() {
-    final days = _providerAiOpenAvailabilityDays();
-
-    if (days == 0) {
-      return 'Open provider availability';
-    }
-
-    if (days < 5) {
-      return 'Expand weekly availability';
-    }
-
-    return 'Availability coverage is strong';
-  }
-
-  String _providerAiAvailabilityActionDetail() {
-    final days = _providerAiOpenAvailabilityDays();
-    final requests = _providerAiBookingRequests();
-
-    if (days == 0) {
-      return 'No active weekly availability is currently configured.';
-    }
-
-    if (requests > 0) {
-      return '$requests booking request${requests == 1 ? '' : 's'} '
-          'currently need attention.';
-    }
-
-    return '$days active availability day${days == 1 ? '' : 's'} configured.';
-  }
-
-  String _providerAiMessageActionTitle() {
-    final unread = _providerAiUnreadMessages();
-
-    if (unread > 0) {
-      return 'Reply to $unread unread message${unread == 1 ? '' : 's'}';
-    }
-
-    if (_providerConversations.isEmpty) {
-      return 'Customer communication ready';
-    }
-
-    return 'Customer messages are current';
-  }
-
-  String _providerAiMessageActionDetail() {
-    final unread = _providerAiUnreadMessages();
-    final conversations = _providerConversations.length;
-
-    if (unread > 0) {
-      return 'Secure communications has customer messages waiting for a response.';
-    }
-
-    if (conversations == 0) {
-      return 'New customer conversations will appear automatically.';
-    }
-
-    return '$conversations customer conversation${conversations == 1 ? '' : 's'} '
-        'connected with no unread messages.';
-  }
-
-  Future<void> _showProviderAiQueryDialog() async {
-    final controller = TextEditingController();
-
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF090F20),
-          title: const Row(
-            children: [
-              Icon(Icons.psychology_alt_rounded, color: Color(0xFFB36CFF)),
-              SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'Ask Agent Duke',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          content: SizedBox(
-            width: 620,
-            child: TextField(
-              controller: controller,
-              autofocus: true,
-              minLines: 2,
-              maxLines: 5,
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                hintText: 'Ask about bookings, revenue, customers, schedule or demand...',
-                hintStyle: const TextStyle(color: Colors.white38),
-                filled: true,
-                fillColor: const Color(0xFF10182C),
-                prefixIcon: const Icon(
-                  Icons.auto_awesome_rounded,
-                  color: Color(0xFFA77BFF),
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(15),
-                  borderSide: BorderSide(
-                    color: const Color(0xFF7857FF).withValues(alpha: .30),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-              },
-              child: const Text('Cancel'),
-            ),
-            FilledButton.icon(
-              onPressed: () {
-                final question = controller.text.trim();
-
-                if (question.isEmpty) {
-                  return;
-                }
-
-                Navigator.of(dialogContext).pop();
-
-                _showProviderAiMessage(_providerAiAnswer(question));
-              },
-              icon: const Icon(Icons.send_rounded),
-              label: const Text('Ask Agent Duke'),
-            ),
-          ],
-        );
-      },
-    );
-
-    controller.dispose();
-  }
-
-  Future<void> _showProviderAiRecommendations() async {
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF090F20),
-          title: const Row(
-            children: [
-              Icon(Icons.auto_awesome_rounded, color: Color(0xFFB36CFF)),
-              SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'AI Recommended Actions',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          content: SizedBox(
-            width: 620,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ListTile(
-                  leading: const Icon(
-                    Icons.calendar_month_outlined,
-                    color: Color(0xFF59D5FF),
-                  ),
-                  title: Text(
-                    _providerAiScheduleHeadline(),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  subtitle: Text(
-                    _providerAiScheduleDetail(),
-                    style: const TextStyle(color: Colors.white54),
-                  ),
-                  onTap: () {
-                    Navigator.of(dialogContext).pop();
-                    _goTo('Schedule & Availability');
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(
-                    Icons.chat_bubble_outline_rounded,
-                    color: Color(0xFFB36CFF),
-                  ),
-                  title: Text(
-                    '${_providerAiUnreadMessages()} unread customer messages',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  subtitle: const Text(
-                    'Open secure communications and follow up.',
-                    style: TextStyle(color: Colors.white54),
-                  ),
-                  onTap: () {
-                    Navigator.of(dialogContext).pop();
-                    _goTo('Messages');
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(
-                    Icons.trending_up_rounded,
-                    color: Color(0xFF59E6A7),
-                  ),
-                  title: Text(
-                    '${_providerAiCurrency(_providerAiThisWeekRevenue())} paid this week',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  subtitle: Text(
-                    'Revenue trend: ${_providerAiRevenueTrendPercent()} versus last week.',
-                    style: const TextStyle(color: Colors.white54),
-                  ),
-                  onTap: () {
-                    Navigator.of(dialogContext).pop();
-                    _goTo('Earnings');
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(
-                    Icons.person_outline_rounded,
-                    color: Color(0xFFFF7CC8),
-                  ),
-                  title: Text(
-                    'Highlight ${_providerAiTopService()}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  subtitle: const Text(
-                    'Your highest-demand service should be prominent on your profile.',
-                    style: TextStyle(color: Colors.white54),
-                  ),
-                  onTap: () {
-                    Navigator.of(dialogContext).pop();
-                    _goTo('Provider Profile');
-                  },
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-              },
-              child: const Text('Close'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   Widget _ai() {
     Widget metricCard({
       required IconData icon,
@@ -28241,7 +26289,9 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
             const SizedBox(height: 10),
             InkWell(
               onTap: () {
-                _showProviderAiQueryDialog();
+                showAiMessage(
+                  'Agent Duke conversation engine will connect to the live AI backend next.',
+                );
               },
               borderRadius: BorderRadius.circular(14),
               child: Container(
@@ -28289,7 +26339,7 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
                   child: metricCard(
                     icon: Icons.calendar_month_rounded,
                     label: "Today's Bookings",
-                    value: _providerAiTodayBookings().toString(),
+                    value: _providerBookings.length.toString(),
                     accent: const Color(0xFF59B8FF),
                   ),
                 ),
@@ -28297,8 +26347,8 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
                 Expanded(
                   child: metricCard(
                     icon: Icons.payments_outlined,
-                    label: 'Paid Today',
-                    value: _providerAiCurrency(_providerAiTodayRevenue()),
+                    label: 'Projected Earnings',
+                    value: '\$640',
                     accent: const Color(0xFF58E0A6),
                   ),
                 ),
@@ -28310,8 +26360,8 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
                 Expanded(
                   child: metricCard(
                     icon: Icons.schedule_rounded,
-                    label: 'Active Days',
-                    value: _providerAiOpenAvailabilityDays().toString(),
+                    label: 'Open Time Slots',
+                    value: '3',
                     accent: const Color(0xFF56E2D2),
                   ),
                 ),
@@ -28320,7 +26370,10 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
                   child: metricCard(
                     icon: Icons.mail_outline_rounded,
                     label: 'Unread Messages',
-                    value: _providerAiUnreadMessages().toString(),
+                    value: _providerConversations
+                        .where((row) => (row['unread_count'] as int? ?? 0) > 0)
+                        .length
+                        .toString(),
                     accent: const Color(0xFFB26DFF),
                   ),
                 ),
@@ -28341,18 +26394,18 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
                   color: const Color(0xFFFFC857).withValues(alpha: .22),
                 ),
               ),
-              child: Row(
+              child: const Row(
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.lightbulb_outline_rounded,
                     color: Color(0xFFFFD45D),
                     size: 19,
                   ),
-                  const SizedBox(width: 10),
+                  SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      _providerAiDemandInsight(),
-                      style: const TextStyle(
+                      'Demand intelligence: evening availability can increase booking visibility.',
+                      style: TextStyle(
                         color: Colors.white70,
                         fontSize: 9,
                         height: 1.4,
@@ -28376,18 +26429,18 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              _providerAiRevenueTrendLabel(),
-              style: const TextStyle(
+            const Text(
+              'Revenue trend improving',
+              style: TextStyle(
                 color: Colors.white70,
                 fontSize: 10,
                 fontWeight: FontWeight.w800,
               ),
             ),
             const SizedBox(height: 4),
-            Text(
-              _providerAiRevenueTrendPercent(),
-              style: const TextStyle(
+            const Text(
+              '+12%',
+              style: TextStyle(
                 color: Color(0xFF55E3A3),
                 fontSize: 20,
                 fontWeight: FontWeight.w900,
@@ -28397,9 +26450,7 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
             SizedBox(
               height: 105,
               child: CustomPaint(
-                painter: _ProviderAiRevenuePainter(
-                  values: _providerAiDailyRevenueSeries(),
-                ),
+                painter: _ProviderAiRevenuePainter(),
                 child: const SizedBox.expand(),
               ),
             ),
@@ -28410,7 +26461,7 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
                   child: metricCard(
                     icon: Icons.account_balance_wallet_outlined,
                     label: 'This Week',
-                    value: _providerAiCurrency(_providerAiThisWeekRevenue()),
+                    value: '\$2,480',
                     accent: const Color(0xFF8D75FF),
                   ),
                 ),
@@ -28419,7 +26470,7 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
                   child: metricCard(
                     icon: Icons.attach_money_rounded,
                     label: 'Avg Session',
-                    value: _providerAiCurrency(_providerAiAverageSession()),
+                    value: '\$124',
                     accent: const Color(0xFF57D8FF),
                   ),
                 ),
@@ -28428,7 +26479,7 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
                   child: metricCard(
                     icon: Icons.replay_rounded,
                     label: 'Repeat Clients',
-                    value: '${_providerAiRepeatRate().toStringAsFixed(0)}%',
+                    value: '38%',
                     accent: const Color(0xFF55E2AA),
                   ),
                 ),
@@ -28448,25 +26499,24 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
           children: [
             insightRow(
               icon: Icons.trending_up_rounded,
-              title: _providerAiScheduleHeadline(),
-              subtitle: _providerAiScheduleDetail(),
+              title: 'Open Thursday 6:00 PM',
+              subtitle: 'High demand window detected.',
               accent: const Color(0xFFC062FF),
               onTap: () => _goTo('Schedule & Availability'),
             ),
             const SizedBox(height: 8),
             insightRow(
               icon: Icons.add_rounded,
-              title:
-                  '${_providerAiOpenAvailabilityDays()} active availability days',
-              subtitle: 'Review your live schedule and add high-demand windows when needed.',
+              title: 'Add 2 mobile slots on Saturday',
+              subtitle: 'Potential weekend demand opportunity.',
               accent: const Color(0xFF8C70FF),
               onTap: () => _goTo('Schedule & Availability'),
             ),
             const SizedBox(height: 8),
             insightRow(
               icon: Icons.schedule_rounded,
-              title: '${_providerAiTodayBookings()} bookings scheduled today',
-              subtitle: 'Use live booking activity to optimize gaps between appointments.',
+              title: 'Reduce idle gaps',
+              subtitle: 'Optimize availability between afternoon bookings.',
               accent: const Color(0xFF55D5FF),
               onTap: () => _goTo('Schedule & Availability'),
             ),
@@ -28504,29 +26554,28 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
             insightRow(
               icon: Icons.spa_outlined,
               title: 'Most requested service',
-              subtitle: _providerAiTopService(),
+              subtitle: 'Deep Tissue',
               accent: const Color(0xFFB66FFF),
             ),
             const SizedBox(height: 8),
             insightRow(
               icon: Icons.people_alt_outlined,
               title: 'Top returning clients',
-              subtitle: '${_providerAiRepeatClients()} repeat customers',
+              subtitle: '7 repeat customers',
               accent: const Color(0xFF5FBEFF),
             ),
             const SizedBox(height: 8),
             insightRow(
               icon: Icons.search_rounded,
-              title: 'Unread customer messages',
-              subtitle:
-                  '${_providerAiUnreadMessages()} messages need attention',
+              title: 'Best conversion channel',
+              subtitle: 'In-app search',
               accent: const Color(0xFF52E0AD),
             ),
             const SizedBox(height: 8),
             insightRow(
               icon: Icons.star_rounded,
-              title: 'Completed sessions',
-              subtitle: '${_providerAiCompletedSessions()} completed bookings',
+              title: 'Average rating',
+              subtitle: '4.9 provider satisfaction',
               accent: const Color(0xFFFFD85E),
             ),
           ],
@@ -28543,32 +26592,32 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
           children: [
             insightRow(
               icon: Icons.description_outlined,
-              title: _providerAiProfileActionTitle(),
-              subtitle: _providerAiProfileActionDetail(),
+              title: 'Update profile headline',
+              subtitle: 'Make your strongest service more visible.',
               accent: const Color(0xFF58D6FF),
               onTap: () => _goTo('Provider Profile'),
             ),
             const SizedBox(height: 8),
             insightRow(
               icon: Icons.image_outlined,
-              title: _providerAiMediaActionTitle(),
-              subtitle: _providerAiMediaActionDetail(),
+              title: 'Post a new media highlight',
+              subtitle: 'Fresh media can improve profile engagement.',
               accent: const Color(0xFF53E2AC),
               onTap: () => _goTo('Photos & Videos'),
             ),
             const SizedBox(height: 8),
             insightRow(
               icon: Icons.calendar_month_outlined,
-              title: _providerAiAvailabilityActionTitle(),
-              subtitle: _providerAiAvailabilityActionDetail(),
+              title: 'Enable evening availability',
+              subtitle: 'Capture additional high-demand windows.',
               accent: const Color(0xFF8B72FF),
               onTap: () => _goTo('Schedule & Availability'),
             ),
             const SizedBox(height: 8),
             insightRow(
               icon: Icons.send_outlined,
-              title: _providerAiMessageActionTitle(),
-              subtitle: _providerAiMessageActionDetail(),
+              title: 'Follow up with recent customers',
+              subtitle: 'Reconnect through secure messaging.',
               accent: const Color(0xFF5FC6FF),
               onTap: () => _goTo('Messages'),
             ),
@@ -28578,7 +26627,9 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
               width: double.infinity,
               child: FilledButton.icon(
                 onPressed: () {
-                  _showProviderAiRecommendations();
+                  showAiMessage(
+                    'Agent Duke recommendations are ready for provider review.',
+                  );
                 },
                 style: FilledButton.styleFrom(
                   backgroundColor: const Color(0xFF7146F8),
@@ -28616,9 +26667,13 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
           'Revenue',
           'Growth',
         ],
-        onPrimary: _showProviderAiQueryDialog,
+        onPrimary: () {
+          showAiMessage(
+            'Agent Duke AI chat backend will connect to the live AI service next.',
+          );
+        },
         onSecondary: () {
-          _showProviderAiMessage(_providerAiBriefing());
+          showAiMessage('Daily provider intelligence briefing generated.');
         },
       );
     }
@@ -28711,8 +26766,6 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
 
             return Column(
               children: [
-                _providerAiLiveSyncBanner(),
-                const SizedBox(height: 14),
                 chatPanel(),
                 const SizedBox(height: 12),
                 briefingPanel(),
@@ -30536,199 +28589,6 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
     );
   }
 
-  Widget _providerNotifications() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const _V2SectionLabel(
-          title: 'NOTIFICATIONS',
-          subtitle: 'PROVIDER ACTIVITY CENTER',
-          icon: Icons.notifications_none_rounded,
-        ),
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(21),
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF11162D), Color(0xFF091323), Color(0xFF060C17)],
-            ),
-            border: Border.all(
-              color: const Color(0xFFD667FF).withValues(alpha: .24),
-            ),
-          ),
-          child: const Row(
-            children: [
-              CircleAvatar(
-                radius: 24,
-                backgroundColor: Color(0xFF251A3E),
-                child: Icon(
-                  Icons.notifications_active_outlined,
-                  color: Color(0xFFD667FF),
-                ),
-              ),
-              SizedBox(width: 13),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Provider Notification Center',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    SizedBox(height: 4),
-                    Text(
-                      'Manage booking, message, payment and provider alerts.',
-                      style: TextStyle(
-                        color: Color(0xFF8996B1),
-                        fontSize: 10,
-                        height: 1.4,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 14),
-        _moduleAction(
-          icon: Icons.calendar_month_outlined,
-          title: 'Booking Requests',
-          subtitle: 'Review and manage provider booking activity.',
-          accent: const Color(0xFF39D6FF),
-          onTap: () => _goTo('Bookings'),
-        ),
-        const SizedBox(height: 10),
-        _moduleAction(
-          icon: Icons.chat_bubble_outline_rounded,
-          title: 'Customer Messages',
-          subtitle: 'Open live customer conversations and unread messages.',
-          accent: const Color(0xFF59E6A7),
-          onTap: () => _goTo('Messages'),
-        ),
-        const SizedBox(height: 10),
-        _moduleAction(
-          icon: Icons.account_balance_wallet_outlined,
-          title: 'Payment Activity',
-          subtitle:
-              'Review provider earnings, transactions and payout activity.',
-          accent: const Color(0xFF8A55FF),
-          onTap: () => _goTo('Earnings'),
-        ),
-        const SizedBox(height: 10),
-        _moduleAction(
-          icon: Icons.tune_rounded,
-          title: 'Notification Preferences',
-          subtitle: 'Choose which provider alerts you want to receive.',
-          accent: const Color(0xFFD667FF),
-          onTap: _openProviderNotificationPreferences,
-        ),
-      ],
-    );
-  }
-
-  Widget _providerAccount() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const _V2SectionLabel(
-          title: 'PROVIDER ACCOUNT',
-          subtitle: 'IDENTITY & ACCOUNT CONTROL',
-          icon: Icons.account_circle_outlined,
-        ),
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(21),
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF101B36), Color(0xFF091426), Color(0xFF060D18)],
-            ),
-            border: Border.all(
-              color: const Color(0xFF39D6FF).withValues(alpha: .24),
-            ),
-          ),
-          child: const Row(
-            children: [
-              CircleAvatar(
-                radius: 25,
-                backgroundColor: Color(0xFF1B2A4A),
-                child: _CurrentUserTopBarAvatar(),
-              ),
-              SizedBox(width: 13),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Provider Identity Center',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    SizedBox(height: 4),
-                    Text(
-                      'Manage account identity, profile, security and private controls.',
-                      style: TextStyle(
-                        color: Color(0xFF8996B1),
-                        fontSize: 10,
-                        height: 1.4,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 14),
-        _moduleAction(
-          icon: Icons.manage_accounts_outlined,
-          title: 'Account Information',
-          subtitle:
-              'Legal name, phone, business name and provider information.',
-          accent: const Color(0xFF39D6FF),
-          onTap: _openProviderAccountInformation,
-        ),
-        const SizedBox(height: 10),
-        _moduleAction(
-          icon: Icons.person_outline_rounded,
-          title: 'Provider Profile',
-          subtitle: 'Professional profile, services, bio and public presence.',
-          accent: const Color(0xFF59E6A7),
-          onTap: () => _goTo('Provider Profile'),
-        ),
-        const SizedBox(height: 10),
-        _moduleAction(
-          icon: Icons.lock_outline_rounded,
-          title: 'Password & Security',
-          subtitle: 'Password and secure login controls.',
-          accent: const Color(0xFF8A55FF),
-          onTap: _openProviderPasswordSecurity,
-        ),
-        const SizedBox(height: 10),
-        _moduleAction(
-          icon: Icons.settings_outlined,
-          title: 'Provider Settings',
-          subtitle: 'Open all private provider account and business controls.',
-          accent: const Color(0xFFD667FF),
-          onTap: () => _goTo('Provider Settings'),
-        ),
-      ],
-    );
-  }
-
   Widget _generic() {
     IconData icon = Icons.apps_rounded;
 
@@ -30787,10 +28647,10 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
         return _settings();
 
       case 'Notifications':
-        return _providerNotifications();
+        return _settings();
 
       case 'Provider Account':
-        return _providerAccount();
+        return _settings();
 
       default:
         return _generic();

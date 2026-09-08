@@ -1,0 +1,204 @@
+import { createClient } from 'npm:@supabase/supabase-js@2'
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers':
+    'authorization, x-client-info, apikey, content-type',
+}
+
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      ...corsHeaders,
+      'Content-Type': 'application/json',
+    },
+  })
+}
+
+Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
+  }
+
+  if (req.method !== 'POST') {
+    return json({ error: 'Method not allowed' }, 405)
+  }
+
+  try {
+    const stripeSecret = Deno.env.get('STRIPE_SECRET_KEY')
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY')
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+
+    if (!stripeSecret) {
+      return json({ error: 'STRIPE_SECRET_KEY is not configured' }, 500)
+    }
+
+    if (!supabaseUrl || !anonKey || !serviceRoleKey) {
+      return json({ error: 'Supabase environment is incomplete' }, 500)
+    }
+
+    const authHeader = req.headers.get('Authorization')
+
+    if (!authHeader) {
+      return json({ error: 'Missing authorization' }, 401)
+    }
+
+    const token = authHeader.replace('Bearer ', '').trim()
+
+    const authClient = createClient(supabaseUrl, anonKey)
+
+    const {
+      data: { user },
+      error: authError,
+    } = await authClient.auth.getUser(token)
+
+    if (authError || !user) {
+      return json({ error: 'Invalid user session' }, 401)
+    }
+
+    const admin = createClient(supabaseUrl, serviceRoleKey)
+
+    const { data: provider, error: providerError } = await admin
+      .from('provider_profiles')
+      .select(
+        'id, professional_name, business_name, stripe_account_id'
+      )
+      .eq('id', user.id)
+      .maybeSingle()
+
+    if (providerError) {
+      throw providerError
+    }
+
+    if (!provider) {
+      return json(
+        { error: 'No wellness provider profile exists for this account' },
+        403,
+      )
+    }
+
+    let stripeAccountId =
+      provider.stripe_account_id?.toString().trim() ?? ''
+
+    if (!stripeAccountId) {
+      const params = new URLSearchParams()
+
+      params.set('type', 'express')
+
+      if (user.email) {
+        params.set('email', user.email)
+      }
+
+      params.set(
+        'business_profile[product_description]',
+        'Wellness services provided through 999 Wellness Intelligence',
+      )
+
+      const accountResponse = await fetch(
+        'https://api.stripe.com/v1/accounts',
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${stripeSecret}`,
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: params,
+        },
+      )
+
+      const account = await accountResponse.json()
+
+      if (!accountResponse.ok) {
+        console.error('Stripe account creation failed', account)
+        return json(
+          {
+            error:
+              account?.error?.message ??
+              'Unable to create Stripe connected account',
+          },
+          400,
+        )
+      }
+
+      stripeAccountId = account.id
+
+      const { error: updateError } = await admin
+        .from('provider_profiles')
+        .update({
+          stripe_account_id: stripeAccountId,
+          stripe_details_submitted: false,
+          stripe_charges_enabled: false,
+          stripe_payouts_enabled: false,
+          stripe_onboarding_complete: false,
+        })
+        .eq('id', user.id)
+
+      if (updateError) {
+        throw updateError
+      }
+    }
+
+    const body = await req.json().catch(() => ({}))
+
+    const returnUrl =
+      body.return_url ??
+      'https://yqnwdaoraubsbdxmouum.supabase.co/functions/v1/stripe-connect-return'
+
+    const refreshUrl =
+      body.refresh_url ??
+      'https://yqnwdaoraubsbdxmouum.supabase.co/functions/v1/stripe-connect-return'
+
+    const linkParams = new URLSearchParams()
+
+    linkParams.set('account', stripeAccountId)
+    linkParams.set('refresh_url', refreshUrl)
+    linkParams.set('return_url', returnUrl)
+    linkParams.set('type', 'account_onboarding')
+
+    const linkResponse = await fetch(
+      'https://api.stripe.com/v1/account_links',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${stripeSecret}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: linkParams,
+      },
+    )
+
+    const link = await linkResponse.json()
+
+    if (!linkResponse.ok) {
+      console.error('Stripe onboarding link failed', link)
+      return json(
+        {
+          error:
+            link?.error?.message ??
+            'Unable to create Stripe onboarding link',
+        },
+        400,
+      )
+    }
+
+    return json({
+      ok: true,
+      account_id: stripeAccountId,
+      onboarding_url: link.url,
+    })
+  } catch (error) {
+    console.error(error)
+
+    return json(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Unexpected server error',
+      },
+      500,
+    )
+  }
+})

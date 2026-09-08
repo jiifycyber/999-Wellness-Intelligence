@@ -1,0 +1,187 @@
+import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+Future<void> showCommunityPostOptions({
+  required BuildContext context,
+  required Map<String, dynamic> post,
+  required Future<void> Function() onChanged,
+}) async {
+  final user = Supabase.instance.client.auth.currentUser;
+  final postId = post['id']?.toString() ?? '';
+  final authorId = post['author_id']?.toString() ?? '';
+
+  if (user == null || postId.isEmpty || authorId != user.id) {
+    return;
+  }
+
+  final action = await showDialog<String>(
+    context: context,
+    builder: (dialogContext) {
+      return SimpleDialog(
+        backgroundColor: const Color(0xFF0C1426),
+        title: const Text(
+          'Post Options',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
+        ),
+        children: [
+          SimpleDialogOption(
+            onPressed: () => Navigator.of(dialogContext).pop('edit'),
+            child: const Row(
+              children: [
+                Icon(Icons.edit_outlined, color: Color(0xFF75DFFF)),
+                SizedBox(width: 12),
+                Text('Edit Post', style: TextStyle(color: Colors.white)),
+              ],
+            ),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.of(dialogContext).pop('delete'),
+            child: const Row(
+              children: [
+                Icon(Icons.delete_outline_rounded, color: Color(0xFFFF6D8F)),
+                SizedBox(width: 12),
+                Text('Delete Post', style: TextStyle(color: Color(0xFFFF8AA5))),
+              ],
+            ),
+          ),
+        ],
+      );
+    },
+  );
+
+  if (!context.mounted || action == null) {
+    return;
+  }
+
+  if (action == 'edit') {
+    final controller = TextEditingController(
+      text: post['body']?.toString() ?? '',
+    );
+
+    final updatedBody = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF0C1426),
+          title: const Text(
+            'Edit Post',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
+          ),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            minLines: 3,
+            maxLines: 8,
+            style: const TextStyle(color: Colors.white),
+            decoration: const InputDecoration(
+              hintText: 'Edit your post...',
+              hintStyle: TextStyle(color: Colors.white38),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () =>
+                  Navigator.of(dialogContext).pop(controller.text.trim()),
+              child: const Text('Save Changes'),
+            ),
+          ],
+        );
+      },
+    );
+
+    controller.dispose();
+
+    if (updatedBody == null) {
+      return;
+    }
+
+    final mediaPath = post['media_path']?.toString().trim() ?? '';
+    if (updatedBody.isEmpty && mediaPath.isEmpty) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('A text-only post cannot be empty.')),
+      );
+      return;
+    }
+
+    try {
+      await Supabase.instance.client
+          .from('community_posts')
+          .update({'body': updatedBody})
+          .eq('id', postId)
+          .eq('author_id', user.id);
+
+      await onChanged();
+
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Post updated.')));
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Unable to edit post: $error')));
+    }
+    return;
+  }
+
+  if (action == 'delete') {
+    final confirmed =
+        await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF0C1426),
+              title: const Text(
+                'Delete Post?',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              content: const Text(
+                'This post will be permanently deleted.',
+                style: TextStyle(color: Color(0xFFB9C4DB)),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(false),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(true),
+                  child: const Text('Delete'),
+                ),
+              ],
+            );
+          },
+        ) ??
+        false;
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await Supabase.instance.client
+          .from('community_posts')
+          .delete()
+          .eq('id', postId)
+          .eq('author_id', user.id);
+
+      await onChanged();
+
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Post deleted.')));
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Unable to delete post: $error')));
+    }
+  }
+}

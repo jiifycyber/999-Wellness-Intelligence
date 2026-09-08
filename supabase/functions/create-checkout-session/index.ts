@@ -1,0 +1,464 @@
+import { createClient } from 'npm:@supabase/supabase-js@2'
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers':
+    'authorization, x-client-info, apikey, content-type',
+}
+
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      ...corsHeaders,
+      'Content-Type': 'application/json',
+    },
+  })
+}
+
+function money(value: unknown) {
+  const parsed = Number(value)
+
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return null
+  }
+
+  return parsed
+}
+
+Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
+  }
+
+  if (req.method !== 'POST') {
+    return json({ error: 'Method not allowed' }, 405)
+  }
+
+  try {
+    const stripeSecret = Deno.env.get('STRIPE_SECRET_KEY')
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY')
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+
+    const platformFeePercent =
+      Number(Deno.env.get('PLATFORM_FEE_PERCENT') ?? '3') || 3
+
+    if (!stripeSecret) {
+      return json(
+        { error: 'STRIPE_SECRET_KEY is not configured' },
+        500,
+      )
+    }
+
+    if (!supabaseUrl || !anonKey || !serviceRoleKey) {
+      return json(
+        { error: 'Supabase environment is incomplete' },
+        500,
+      )
+    }
+
+    const authHeader = req.headers.get('Authorization')
+
+    if (!authHeader) {
+      return json({ error: 'Missing authorization' }, 401)
+    }
+
+    const token = authHeader.replace('Bearer ', '').trim()
+
+    const authClient = createClient(supabaseUrl, anonKey)
+
+    const {
+      data: { user },
+      error: authError,
+    } = await authClient.auth.getUser(token)
+
+    if (authError || !user) {
+      return json({ error: 'Invalid customer session' }, 401)
+    }
+
+    const body = await req.json().catch(() => ({}))
+    const bookingId = body.booking_id?.toString().trim() ?? ''
+
+    if (!bookingId) {
+      return json({ error: 'booking_id is required' }, 400)
+    }
+
+    const admin = createClient(supabaseUrl, serviceRoleKey)
+
+    // --------------------------------------------------------
+    // LOAD THE BOOKING
+    // --------------------------------------------------------
+
+    const { data: booking, error: bookingError } = await admin
+      .from('bookings')
+      .select(
+        'id, customer_id, provider_id, provider_name, service_name, ' +
+          'price, currency, payment_status, stripe_payment_intent_id',
+      )
+      .eq('id', bookingId)
+      .maybeSingle()
+
+    if (bookingError) {
+      throw bookingError
+    }
+
+    if (!booking) {
+      return json({ error: 'Booking not found' }, 404)
+    }
+
+    if (booking.customer_id?.toString() !== user.id) {
+      return json(
+        { error: 'You are not authorized to pay this booking' },
+        403,
+      )
+    }
+
+    const providerId = booking.provider_id?.toString().trim() ?? ''
+
+    if (!providerId) {
+      return json(
+        { error: 'Booking does not contain a provider ID' },
+        400,
+      )
+    }
+
+    const serviceName =
+      booking.service_name?.toString().trim() ?? ''
+
+    if (!serviceName) {
+      return json(
+        { error: 'Booking does not contain a service' },
+        400,
+      )
+    }
+
+    // --------------------------------------------------------
+    // RELOAD PRICE FROM PROVIDER_SERVICES
+    //
+    // IMPORTANT:
+    // We do NOT trust a price sent from Flutter.
+    // The server gets the current price directly from Supabase.
+    // --------------------------------------------------------
+
+    const { data: service, error: serviceError } = await admin
+      .from('provider_services')
+      .select('provider_id, service_name, price, active')
+      .eq('provider_id', providerId)
+      .eq('service_name', serviceName)
+      .eq('active', true)
+      .maybeSingle()
+
+    if (serviceError) {
+      throw serviceError
+    }
+
+    if (!service) {
+      return json(
+        {
+          error:
+            'This provider service is no longer available for checkout',
+        },
+        400,
+      )
+    }
+
+    const servicePrice = money(service.price)
+
+    if (servicePrice == null) {
+      return json(
+        { error: 'This provider service has an invalid price' },
+        400,
+      )
+    }
+
+    // --------------------------------------------------------
+    // LOAD PROVIDER STRIPE CONNECT ACCOUNT
+    // --------------------------------------------------------
+
+    const { data: provider, error: providerError } = await admin
+      .from('provider_profiles')
+      .select(
+        'id, professional_name, stripe_account_id, ' +
+          'stripe_details_submitted, stripe_charges_enabled, ' +
+          'stripe_payouts_enabled, stripe_onboarding_complete',
+      )
+      .eq('id', providerId)
+      .maybeSingle()
+
+    if (providerError) {
+      throw providerError
+    }
+
+    if (!provider) {
+      return json({ error: 'Provider profile not found' }, 404)
+    }
+
+    const stripeAccountId =
+      provider.stripe_account_id?.toString().trim() ?? ''
+
+    if (!stripeAccountId) {
+      return json(
+        {
+          error:
+            'This provider has not completed Stripe payout setup yet',
+        },
+        409,
+      )
+    }
+
+    // --------------------------------------------------------
+    // GET LIVE CONNECT STATUS DIRECTLY FROM STRIPE
+    // --------------------------------------------------------
+
+    const accountResponse = await fetch(
+      `https://api.stripe.com/v1/accounts/${stripeAccountId}`,
+      {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${stripeSecret}`,
+        },
+      },
+    )
+
+    const stripeAccount = await accountResponse.json()
+
+    if (!accountResponse.ok) {
+      console.error('Unable to retrieve Stripe account', stripeAccount)
+
+      return json(
+        {
+          error:
+            stripeAccount?.error?.message ??
+            'Unable to verify provider Stripe account',
+        },
+        400,
+      )
+    }
+
+    const detailsSubmitted =
+      stripeAccount.details_submitted === true
+
+    const chargesEnabled =
+      stripeAccount.charges_enabled === true
+
+    const payoutsEnabled =
+      stripeAccount.payouts_enabled === true
+
+    await admin
+      .from('provider_profiles')
+      .update({
+        stripe_details_submitted: detailsSubmitted,
+        stripe_charges_enabled: chargesEnabled,
+        stripe_payouts_enabled: payoutsEnabled,
+        stripe_onboarding_complete:
+          detailsSubmitted && chargesEnabled && payoutsEnabled,
+      })
+      .eq('id', providerId)
+
+    if (!chargesEnabled) {
+      return json(
+        {
+          error:
+            'This provider must finish Stripe payout onboarding before accepting payments',
+        },
+        409,
+      )
+    }
+
+    // --------------------------------------------------------
+    // CALCULATE PAYMENT
+    // --------------------------------------------------------
+
+    const totalCents = Math.round(servicePrice * 100)
+
+    const platformFeeCents = Math.round(
+      totalCents * (platformFeePercent / 100),
+    )
+
+    const providerPayoutCents =
+      totalCents - platformFeeCents
+
+    if (providerPayoutCents <= 0) {
+      return json(
+        { error: 'Provider payout amount is invalid' },
+        400,
+      )
+    }
+
+    // --------------------------------------------------------
+    // CREATE STRIPE CHECKOUT SESSION
+    // Destination charge:
+    //
+    // Customer pays platform
+    // Platform keeps application fee
+    // Remaining amount routes to connected provider
+    // --------------------------------------------------------
+
+    const params = new URLSearchParams()
+
+    params.set('mode', 'payment')
+
+    params.set(
+      'success_url',
+      'https://999intelligence.io/stripe-checkout-success/?session_id={CHECKOUT_SESSION_ID}',
+    )
+
+    params.set(
+      'cancel_url',
+      'https://999intelligence.io/stripe/checkout/cancel',
+    )
+
+    params.set('client_reference_id', bookingId)
+
+    if (user.email) {
+      params.set('customer_email', user.email)
+    }
+
+    params.set(
+      'line_items[0][price_data][currency]',
+      'usd',
+    )
+
+    params.set(
+      'line_items[0][price_data][unit_amount]',
+      totalCents.toString(),
+    )
+
+    params.set(
+      'line_items[0][price_data][product_data][name]',
+      `${serviceName} - 999 Wellness Intelligence`,
+    )
+
+    params.set(
+      'line_items[0][price_data][product_data][description]',
+      `Wellness appointment with ${
+        booking.provider_name?.toString() ??
+        provider.professional_name?.toString() ??
+        'Wellness Provider'
+      }`,
+    )
+
+    params.set('line_items[0][quantity]', '1')
+
+    params.set(
+      'payment_intent_data[application_fee_amount]',
+      platformFeeCents.toString(),
+    )
+
+    params.set(
+      'payment_intent_data[transfer_data][destination]',
+      stripeAccountId,
+    )
+
+    params.set(
+      'metadata[booking_id]',
+      bookingId,
+    )
+
+    params.set(
+      'metadata[customer_id]',
+      user.id,
+    )
+
+    params.set(
+      'metadata[provider_id]',
+      providerId,
+    )
+
+    params.set(
+      'payment_intent_data[metadata][booking_id]',
+      bookingId,
+    )
+
+    params.set(
+      'payment_intent_data[metadata][customer_id]',
+      user.id,
+    )
+
+    params.set(
+      'payment_intent_data[metadata][provider_id]',
+      providerId,
+    )
+
+    const checkoutResponse = await fetch(
+      'https://api.stripe.com/v1/checkout/sessions',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${stripeSecret}`,
+          'Content-Type':
+            'application/x-www-form-urlencoded',
+        },
+        body: params,
+      },
+    )
+
+    const checkout = await checkoutResponse.json()
+
+    if (!checkoutResponse.ok) {
+      console.error(
+        'Stripe Checkout creation failed',
+        checkout,
+      )
+
+      return json(
+        {
+          error:
+            checkout?.error?.message ??
+            'Unable to create Stripe Checkout session',
+        },
+        400,
+      )
+    }
+
+    const paymentIntentId =
+      typeof checkout.payment_intent === 'string'
+        ? checkout.payment_intent
+        : null
+
+    // --------------------------------------------------------
+    // SAVE SERVER-CALCULATED MONEY VALUES
+    // --------------------------------------------------------
+
+    await admin
+      .from('bookings')
+      .update({
+        price: servicePrice,
+        currency: 'usd',
+        platform_fee_amount:
+          platformFeeCents / 100,
+        provider_payout_amount:
+          providerPayoutCents / 100,
+        stripe_payment_intent_id:
+          paymentIntentId,
+        payment_status: 'Pending',
+      })
+      .eq('id', bookingId)
+
+    return json({
+      ok: true,
+      booking_id: bookingId,
+      checkout_session_id: checkout.id,
+      checkout_url: checkout.url,
+      amount: totalCents / 100,
+      platform_fee:
+        platformFeeCents / 100,
+      provider_payout:
+        providerPayoutCents / 100,
+      currency: 'usd',
+    })
+  } catch (error) {
+    console.error(error)
+
+    return json(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Unexpected checkout error',
+      },
+      500,
+    )
+  }
+})

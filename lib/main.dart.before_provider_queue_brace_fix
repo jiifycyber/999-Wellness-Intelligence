@@ -18905,8 +18905,6 @@ class _ProviderCommandCenterScreenState
   double _liveWeeklyEarnings = 0;
   double _liveProviderRating = 0;
   int _liveProviderReviewCount = 0;
-  int _liveUnreadMessages = 0;
-  String _liveProviderPhotoUrl = '';
   List<Map<String, dynamic>> _liveProviderBookings = [];
 
   @override
@@ -19084,20 +19082,6 @@ class _ProviderCommandCenterScreenState
           .map((row) => Map<String, dynamic>.from(row as Map))
           .toList();
 
-      int unreadMessages = 0;
-
-      try {
-        final messageRaw = await Supabase.instance.client
-            .from('messages')
-            .select('id, read_at')
-            .eq('receiver_id', user.id);
-
-        unreadMessages = (messageRaw as List).where((row) {
-          final message = Map<String, dynamic>.from(row as Map);
-          return message['read_at'] == null;
-        }).length;
-      } catch (_) {}
-
       Map<String, dynamic> provider = <String, dynamic>{};
 
       try {
@@ -19167,9 +19151,6 @@ class _ProviderCommandCenterScreenState
         _liveWeeklyEarnings = weekly;
         _liveProviderRating = _providerRatingFromProfile(provider);
         _liveProviderReviewCount = _providerReviewCountFromProfile(provider);
-        _liveUnreadMessages = unreadMessages;
-        _liveProviderPhotoUrl =
-            provider['profile_photo_url']?.toString().trim() ?? '';
         _liveProviderBookings = bookings;
         _availableNow = provider['available_now'] != false;
         _providerPulseLoading = false;
@@ -19242,17 +19223,13 @@ class _ProviderCommandCenterScreenState
     );
   }
 
-  Future<void> _openModule(String title) async {
-    await Navigator.of(context).push(
+  void _openModule(String title) {
+    Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) =>
             _ProviderModuleScreen(title: title, providerName: widget.name),
       ),
     );
-
-    if (!mounted) return;
-
-    await _loadProviderCommandCenterData();
   }
 
   void _openProviderFeed() {
@@ -19431,7 +19408,7 @@ class _ProviderCommandCenterScreenState
               _V2SidebarItem(
                 icon: Icons.chat_bubble_outline_rounded,
                 title: 'Messages',
-                trailingDot: _liveUnreadMessages > 0,
+                trailingDot: true,
                 onTap: () => _openModule('Messages'),
               ),
               _V2SidebarItem(
@@ -19635,7 +19612,7 @@ class _ProviderCommandCenterScreenState
 
           _V2TopIcon(
             icon: Icons.notifications_none_rounded,
-            dot: _liveBookingRequests > 0,
+            dot: true,
             onTap: () => _openModule('Notifications'),
           ),
 
@@ -19643,7 +19620,6 @@ class _ProviderCommandCenterScreenState
             const SizedBox(width: 8),
             _V2TopIcon(
               icon: Icons.chat_bubble_outline_rounded,
-              dot: _liveUnreadMessages > 0,
               onTap: () => _openModule('Messages'),
             ),
           ],
@@ -19676,19 +19652,14 @@ class _ProviderCommandCenterScreenState
               ),
               child: Row(
                 children: [
-                  CircleAvatar(
+                  const CircleAvatar(
                     radius: 15,
-                    backgroundColor: const Color(0xFF59388A),
-                    backgroundImage: _liveProviderPhotoUrl.isNotEmpty
-                        ? NetworkImage(_liveProviderPhotoUrl)
-                        : null,
-                    child: _liveProviderPhotoUrl.isEmpty
-                        ? const Icon(
-                            Icons.person_rounded,
-                            size: 17,
-                            color: Colors.white,
-                          )
-                        : null,
+                    backgroundColor: Color(0xFF59388A),
+                    child: Icon(
+                      Icons.person_rounded,
+                      size: 17,
+                      color: Colors.white,
+                    ),
                   ),
                   if (desktop) ...[
                     const SizedBox(width: 8),
@@ -19996,7 +19967,8 @@ class _ProviderCommandCenterScreenState
   }
 
   bool _commandQueueBookingVisible(Map<String, dynamic> booking) {
-    final status = booking['status']?.toString().trim().toLowerCase() ?? '';
+    final status =
+        booking['status']?.toString().trim().toLowerCase() ?? '';
 
     if (status == 'cancelled' || status == 'completed') {
       return false;
@@ -20067,8 +20039,8 @@ class _ProviderCommandCenterScreenState
     final hour = hour24 == 0
         ? 12
         : hour24 > 12
-        ? hour24 - 12
-        : hour24;
+            ? hour24 - 12
+            : hour24;
 
     final suffix = hour24 >= 12 ? 'PM' : 'AM';
 
@@ -20076,9 +20048,11 @@ class _ProviderCommandCenterScreenState
   }
 
   String _commandQueueTitle(Map<String, dynamic> booking) {
-    final status = booking['status']?.toString().trim().toLowerCase() ?? '';
+    final status =
+        booking['status']?.toString().trim().toLowerCase() ?? '';
 
-    final type = booking['service_type']?.toString().trim().toLowerCase() ?? '';
+    final type =
+        booking['service_type']?.toString().trim().toLowerCase() ?? '';
 
     if (status == 'requested') {
       return 'New Booking Request';
@@ -20104,7 +20078,8 @@ class _ProviderCommandCenterScreenState
   }
 
   IconData _commandQueueIcon(Map<String, dynamic> booking) {
-    final status = booking['status']?.toString().trim().toLowerCase() ?? '';
+    final status =
+        booking['status']?.toString().trim().toLowerCase() ?? '';
 
     if (status == 'requested') {
       return Icons.notifications_active_outlined;
@@ -20126,7 +20101,8 @@ class _ProviderCommandCenterScreenState
   }
 
   Color _commandQueueColor(Map<String, dynamic> booking) {
-    final status = booking['status']?.toString().trim().toLowerCase() ?? '';
+    final status =
+        booking['status']?.toString().trim().toLowerCase() ?? '';
 
     switch (status) {
       case 'requested':
@@ -20161,7 +20137,9 @@ class _ProviderCommandCenterScreenState
         decoration: BoxDecoration(
           color: const Color(0xFF0A0F1A).withValues(alpha: .92),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: accent.withValues(alpha: .20)),
+          border: Border.all(
+            color: accent.withValues(alpha: .20),
+          ),
         ),
         child: Row(
           children: [
@@ -20177,7 +20155,11 @@ class _ProviderCommandCenterScreenState
                   ],
                 ),
               ),
-              child: Icon(icon, color: accent, size: 21),
+              child: Icon(
+                icon,
+                color: accent,
+                size: 21,
+              ),
             ),
             const SizedBox(width: 13),
             Expanded(
@@ -20199,7 +20181,10 @@ class _ProviderCommandCenterScreenState
                     '$service - $time',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Colors.white54, fontSize: 9),
+                    style: const TextStyle(
+                      color: Colors.white54,
+                      fontSize: 9,
+                    ),
                   ),
                   if (customer.trim().isNotEmpty) ...[
                     const SizedBox(height: 3),
@@ -20219,11 +20204,16 @@ class _ProviderCommandCenterScreenState
             ),
             const SizedBox(width: 8),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 9,
+                vertical: 5,
+              ),
               decoration: BoxDecoration(
                 color: accent.withValues(alpha: .10),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: accent.withValues(alpha: .25)),
+                border: Border.all(
+                  color: accent.withValues(alpha: .25),
+                ),
               ),
               child: Text(
                 status.toUpperCase(),
@@ -20239,8 +20229,6 @@ class _ProviderCommandCenterScreenState
         ),
       ),
     );
-  }
-
   Widget _operationsPanel() {
     final queue = _liveCommandQueue();
 
@@ -20292,7 +20280,11 @@ class _ProviderCommandCenterScreenState
           if (_providerPulseLoading)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 35),
-              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+              child: Center(
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                ),
+              ),
             )
           else if (queue.isEmpty)
             Container(
@@ -20301,7 +20293,8 @@ class _ProviderCommandCenterScreenState
                 color: const Color(0xFF09111F),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: const Color(0xFF59E6A7).withValues(alpha: .18),
+                  color: const Color(0xFF59E6A7)
+                      .withValues(alpha: .18),
                 ),
               ),
               child: const Column(
@@ -20341,18 +20334,29 @@ class _ProviderCommandCenterScreenState
                   final booking = queue[i];
 
                   final service =
-                      booking['service_name']?.toString().trim() ?? '';
+                      booking['service_name']
+                              ?.toString()
+                              .trim() ??
+                          '';
 
                   final customer =
-                      booking['customer_name']?.toString().trim() ?? '';
+                      booking['customer_name']
+                              ?.toString()
+                              .trim() ??
+                          '';
 
                   final status =
-                      booking['status']?.toString().trim() ?? 'Requested';
+                      booking['status']
+                              ?.toString()
+                              .trim() ??
+                          'Requested';
 
                   return _bookingQueueCard(
                     icon: _commandQueueIcon(booking),
                     title: _commandQueueTitle(booking),
-                    service: service.isEmpty ? 'Wellness Service' : service,
+                    service: service.isEmpty
+                        ? 'Wellness Service'
+                        : service,
                     time: _commandQueueTime(booking),
                     status: status,
                     customer: customer,
@@ -20360,18 +20364,26 @@ class _ProviderCommandCenterScreenState
                   );
                 },
               ),
-              if (i != queue.length - 1) const SizedBox(height: 9),
+              if (i != queue.length - 1)
+                const SizedBox(height: 9),
             ],
-          if (!_providerPulseLoading && queue.isNotEmpty) ...[
+          if (!_providerPulseLoading &&
+              queue.isNotEmpty) ...[
             const SizedBox(height: 12),
             SizedBox(
               height: 40,
               child: OutlinedButton.icon(
                 onPressed: () => _openModule('Bookings'),
-                icon: const Icon(Icons.open_in_new_rounded, size: 16),
+                icon: const Icon(
+                  Icons.open_in_new_rounded,
+                  size: 16,
+                ),
                 label: const Text(
                   'OPEN BOOKING COMMAND CENTER',
-                  style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900),
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
               ),
             ),
@@ -21296,10 +21308,6 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
   List<Map<String, dynamic>> _weeklyAvailability = [];
   List<Map<String, dynamic>> _blockedTimes = [];
 
-  int _providerShellBookingRequests = 0;
-  int _providerShellUnreadMessages = 0;
-  String _providerShellPhotoUrl = '';
-
   bool _earningsLoading = false;
   List<Map<String, dynamic>> _paidProviderBookings = [];
 
@@ -21338,8 +21346,6 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
   void initState() {
     super.initState();
 
-    _loadProviderModuleShellData();
-
     if (widget.title == 'Bookings') {
       _loadProviderBookings();
     }
@@ -21363,59 +21369,6 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
     if (widget.title == 'Agent Duke AI') {
       _refreshProviderAiLiveData();
     }
-  }
-
-  Future<void> _loadProviderModuleShellData() async {
-    final user = Supabase.instance.client.auth.currentUser;
-
-    if (user == null) return;
-
-    int bookingRequests = 0;
-    int unreadMessages = 0;
-    String photoUrl = '';
-
-    try {
-      final bookingRaw = await Supabase.instance.client
-          .from('bookings')
-          .select('id, status')
-          .eq('provider_id', user.id);
-
-      bookingRequests = (bookingRaw as List).where((row) {
-        final booking = Map<String, dynamic>.from(row as Map);
-        return booking['status']?.toString().trim().toLowerCase() ==
-            'requested';
-      }).length;
-    } catch (_) {}
-
-    try {
-      final messageRaw = await Supabase.instance.client
-          .from('messages')
-          .select('id, read_at')
-          .eq('receiver_id', user.id);
-
-      unreadMessages = (messageRaw as List).where((row) {
-        final message = Map<String, dynamic>.from(row as Map);
-        return message['read_at'] == null;
-      }).length;
-    } catch (_) {}
-
-    try {
-      final profile = await Supabase.instance.client
-          .from('provider_profiles')
-          .select('profile_photo_url')
-          .eq('id', user.id)
-          .maybeSingle();
-
-      photoUrl = profile?['profile_photo_url']?.toString().trim() ?? '';
-    } catch (_) {}
-
-    if (!mounted) return;
-
-    setState(() {
-      _providerShellBookingRequests = bookingRequests;
-      _providerShellUnreadMessages = unreadMessages;
-      _providerShellPhotoUrl = photoUrl;
-    });
   }
 
   @override
@@ -24458,7 +24411,7 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
           _V2SidebarItem(
             icon: Icons.chat_bubble_outline_rounded,
             title: 'Messages',
-            trailingDot: _providerShellUnreadMessages > 0,
+            trailingDot: true,
             selected: _selected('Messages'),
             onTap: () => _goTo('Messages'),
           ),
@@ -24558,7 +24511,7 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
 
           _V2TopIcon(
             icon: Icons.notifications_none_rounded,
-            dot: _providerShellBookingRequests > 0,
+            dot: true,
             onTap: () => _goTo('Notifications'),
           ),
 
@@ -24566,7 +24519,6 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
 
           _V2TopIcon(
             icon: Icons.chat_bubble_outline_rounded,
-            dot: _providerShellUnreadMessages > 0,
             onTap: () => _goTo('Messages'),
           ),
 
@@ -24587,19 +24539,10 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
               PopupMenuItem(value: 'account', child: Text('Provider Account')),
               PopupMenuItem(value: 'signout', child: Text('Sign Out')),
             ],
-            child: CircleAvatar(
+            child: const CircleAvatar(
               radius: 16,
-              backgroundColor: const Color(0xFF59388A),
-              backgroundImage: _providerShellPhotoUrl.isNotEmpty
-                  ? NetworkImage(_providerShellPhotoUrl)
-                  : null,
-              child: _providerShellPhotoUrl.isEmpty
-                  ? const Icon(
-                      Icons.person_rounded,
-                      size: 18,
-                      color: Colors.white,
-                    )
-                  : null,
+              backgroundColor: Color(0xFF59388A),
+              child: Icon(Icons.person_rounded, size: 18, color: Colors.white),
             ),
           ),
         ],
