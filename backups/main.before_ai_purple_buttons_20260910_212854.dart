@@ -32941,29 +32941,15 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
               child: FilledButton.icon(
                 onPressed: () => _goTo('Schedule & Availability'),
                 style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF4B24D9),
-                  foregroundColor: Colors.white,
-                  elevation: 8,
-                  shadowColor: const Color(0xFF9A4DFF).withValues(alpha: .55),
-                  side: BorderSide(
-                    color: const Color(0xFFB88CFF).withValues(alpha: .72),
-                    width: 1.15,
-                  ),
+                  backgroundColor: const Color(0xFF6645F5),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
                   ),
                 ),
-                icon: const Icon(
-                  Icons.auto_fix_high_rounded,
-                  color: Colors.white,
-                ),
+                icon: const Icon(Icons.auto_fix_high_rounded),
                 label: const Text(
                   'Optimize Schedule',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: .15,
-                  ),
+                  style: TextStyle(fontWeight: FontWeight.w900),
                 ),
               ),
             ),
@@ -33059,26 +33045,15 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
                   _showProviderAiRecommendations();
                 },
                 style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF5424D8),
-                  foregroundColor: Colors.white,
-                  elevation: 8,
-                  shadowColor: const Color(0xFFB24DFF).withValues(alpha: .55),
-                  side: BorderSide(
-                    color: const Color(0xFFC398FF).withValues(alpha: .72),
-                    width: 1.15,
-                  ),
+                  backgroundColor: const Color(0xFF7146F8),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
                   ),
                 ),
-                icon: const Icon(Icons.bolt_rounded, color: Colors.white),
+                icon: const Icon(Icons.bolt_rounded),
                 label: const Text(
                   'Apply Recommendations',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: .15,
-                  ),
+                  style: TextStyle(fontWeight: FontWeight.w900),
                 ),
               ),
             ),

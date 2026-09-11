@@ -22827,7 +22827,6 @@ class _ProviderCommandCenterScreenState
     extends State<ProviderCommandCenterScreen> {
   bool _availableNow = true;
   int _selectedIndex = 0;
-  bool _providerFeedMode = false;
 
   bool _providerPulseLoading = true;
   int _liveBookingRequests = 0;
@@ -23185,115 +23184,40 @@ class _ProviderCommandCenterScreenState
     await _loadProviderCommandCenterData();
   }
 
-  void _openProviderHome() {
-    setState(() {
-      _providerFeedMode = false;
-      _selectedIndex = 0;
-    });
-  }
-
   void _openProviderFeed() {
-    setState(() {
-      _providerFeedMode = true;
-      _selectedIndex = 1;
-    });
-  }
-
-  Widget _providerExactCustomerFeedSidebar() {
-    return _CustomerV3Sidebar(
-      selectedIndex: 1,
-      messagesSelected: false,
-      aiSelected: false,
-      settingsSelected: false,
-      onHome: _openProviderHome,
-      onFeed: _openProviderFeed,
-      onSearch: () => _openModule('Agent Duke AI'),
-      onBookings: () => _openModule('Bookings'),
-      onFavorites: () => _openModule('Schedule & Availability'),
-      onProfile: () => _openModule('Provider Profile'),
-      onMessages: () => _openModule('Messages'),
-      onSettings: () => _openModule('Provider Settings'),
-    );
-  }
-
-  Widget _providerExactCustomerFeedCenter() {
-    return Align(
-      alignment: Alignment.topCenter,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 760),
-        child: ClipRect(
-          child: SingleChildScrollView(
-            primary: true,
-            padding: const EdgeInsets.only(bottom: 36),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                CommunityFeedScreen(
-                  embedded: true,
-                  onSearch: () => _openModule('Agent Duke AI'),
-                  onNotifications: () => _openModule('Notifications'),
-                  onMessages: () => _openModule('Messages'),
-                  onProfile: () => _openModule('Provider Profile'),
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (feedContext) => CommunityFeedScreen(
+          onNotifications: () {
+            Navigator.of(feedContext).push(
+              MaterialPageRoute(
+                builder: (_) => _ProviderModuleScreen(
+                  title: 'Notifications',
+                  providerName: widget.name,
                 ),
-                const SizedBox(height: 20),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _providerExactCustomerFeedRightRail() {
-    return SingleChildScrollView(
-      primary: false,
-      padding: const EdgeInsets.only(bottom: 24),
-      child: _CustomerDesktopRightRail(
-        onSmartMatch: () => _openModule('Agent Duke AI'),
-        onSearch: () => _openModule('Provider Profile'),
-      ),
-    );
-  }
-
-  Widget _providerExactCustomerFeedDesktop() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1460),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(width: 236, child: _providerExactCustomerFeedSidebar()),
-              const SizedBox(width: 18),
-              Expanded(child: _providerExactCustomerFeedCenter()),
-              const SizedBox(width: 18),
-              SizedBox(
-                width: 260,
-                child: _providerExactCustomerFeedRightRail(),
               ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _providerExactCustomerFeedMobile() {
-    return SingleChildScrollView(
-      primary: true,
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(10, 10, 10, 126),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 680),
-          child: CommunityFeedScreen(
-            embedded: true,
-            onSearch: () => _openModule('Agent Duke AI'),
-            onNotifications: () => _openModule('Notifications'),
-            onMessages: () => _openModule('Messages'),
-            onProfile: () => _openModule('Provider Profile'),
-          ),
+            );
+          },
+          onMessages: () {
+            Navigator.of(feedContext).push(
+              MaterialPageRoute(
+                builder: (_) => _ProviderModuleScreen(
+                  title: 'Messages',
+                  providerName: widget.name,
+                ),
+              ),
+            );
+          },
+          onProfile: () {
+            Navigator.of(feedContext).push(
+              MaterialPageRoute(
+                builder: (_) => _ProviderModuleScreen(
+                  title: 'Provider Profile',
+                  providerName: widget.name,
+                ),
+              ),
+            );
+          },
         ),
       ),
     );
@@ -23319,7 +23243,6 @@ class _ProviderCommandCenterScreenState
         ],
       ),
       child: SingleChildScrollView(
-        physics: const NeverScrollableScrollPhysics(),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -23680,20 +23603,74 @@ class _ProviderCommandCenterScreenState
   }
 
   Widget _providerHero(bool desktop) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _CustomerHomeV4Welcome(name: widget.name),
-        const SizedBox(height: 14),
-        _CustomerDesktopRailPanel(
-          title: 'Provider Availability',
-          icon: Icons.sensors_rounded,
-          accent: _availableNow
-              ? const Color(0xFF59E6A7)
-              : const Color(0xFFFF6F73),
-          child: _availabilityControl(),
+    return Container(
+      constraints: BoxConstraints(minHeight: desktop ? 220 : 250),
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(26),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF120B2B), Color(0xFF09112B), Color(0xFF050912)],
         ),
-      ],
+        border: Border.all(
+          color: const Color(0xFF675BFF).withValues(alpha: .40),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF523DFF).withValues(alpha: .11),
+            blurRadius: 48,
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          const Positioned.fill(
+            child: IgnorePointer(
+              child: CustomPaint(painter: _V2HeroGridPainter()),
+            ),
+          ),
+
+          Positioned(
+            top: -80,
+            right: -50,
+            child: Container(
+              width: 270,
+              height: 270,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF7048FF).withValues(alpha: .15),
+                    blurRadius: 110,
+                    spreadRadius: 35,
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          Padding(
+            padding: EdgeInsets.all(desktop ? 28 : 20),
+            child: desktop
+                ? Row(
+                    children: [
+                      Expanded(child: _providerHeroText()),
+                      const SizedBox(width: 28),
+                      SizedBox(width: 290, child: _availabilityControl()),
+                    ],
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _providerHeroText(),
+                      const SizedBox(height: 20),
+                      _availabilityControl(),
+                    ],
+                  ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -23821,23 +23798,22 @@ class _ProviderCommandCenterScreenState
     return SizedBox(
       width: width,
       child: Container(
-        constraints: const BoxConstraints(minHeight: 132),
-        padding: const EdgeInsets.all(15),
+        height: 132,
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
+          gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xFF081F46), Color(0xFF071731), Color(0xFF060B1B)],
+            colors: [
+              accent.withValues(alpha: .13),
+              const Color(0xFF0B1020),
+              const Color(0xFF070A12),
+            ],
           ),
           borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: accent.withValues(alpha: .40)),
+          border: Border.all(color: accent.withValues(alpha: .36)),
           boxShadow: [
-            BoxShadow(color: accent.withValues(alpha: .15), blurRadius: 32),
-            BoxShadow(
-              color: Colors.black.withValues(alpha: .40),
-              blurRadius: 18,
-              offset: const Offset(0, 8),
-            ),
+            BoxShadow(color: accent.withValues(alpha: .12), blurRadius: 20),
           ],
         ),
         child: Row(
@@ -23846,22 +23822,14 @@ class _ProviderCommandCenterScreenState
               width: 48,
               height: 48,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(15),
+                borderRadius: BorderRadius.circular(14),
                 gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
                   colors: [
-                    accent.withValues(alpha: .55),
-                    accent.withValues(alpha: .14),
+                    accent.withValues(alpha: .42),
+                    accent.withValues(alpha: .12),
                   ],
                 ),
-                border: Border.all(color: accent.withValues(alpha: .48)),
-                boxShadow: [
-                  BoxShadow(
-                    color: accent.withValues(alpha: .22),
-                    blurRadius: 18,
-                  ),
-                ],
+                border: Border.all(color: accent.withValues(alpha: .35)),
               ),
               child: Icon(icon, color: Colors.white, size: 22),
             ),
@@ -23876,11 +23844,10 @@ class _ProviderCommandCenterScreenState
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 24,
-                      height: 1,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 2),
                   Text(
                     label.toUpperCase(),
                     style: TextStyle(
@@ -23896,10 +23863,9 @@ class _ProviderCommandCenterScreenState
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      color: Color(0xFF9DA7C0),
+                      color: Colors.white38,
                       fontSize: 9,
-                      height: 1.35,
-                      fontWeight: FontWeight.w600,
+                      height: 1.3,
                     ),
                   ),
                 ],
@@ -24604,10 +24570,10 @@ class _ProviderCommandCenterScreenState
   Widget _buildDashboard(bool desktop) {
     return SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(
-        desktop ? 0 : 14,
-        desktop ? 0 : 16,
-        desktop ? 0 : 14,
-        desktop ? 36 : 110,
+        desktop ? 28 : 14,
+        16,
+        desktop ? 28 : 14,
+        desktop ? 45 : 110,
       ),
       child: Center(
         child: ConstrainedBox(
@@ -24920,63 +24886,60 @@ class _ProviderCommandCenterScreenState
 
                     Expanded(
                       child: desktop
-                          ? (_providerFeedMode
-                                ? _providerExactCustomerFeedDesktop()
-                                : Padding(
-                                    padding: const EdgeInsets.fromLTRB(
-                                      18,
-                                      14,
-                                      18,
-                                      18,
-                                    ),
-                                    child: Center(
-                                      child: ConstrainedBox(
-                                        constraints: const BoxConstraints(
-                                          maxWidth: 1460,
-                                        ),
-                                        child: Row(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            SizedBox(
-                                              width: 236,
-                                              child: _providerSidebar(),
+                          ? Padding(
+                              padding: const EdgeInsets.fromLTRB(
+                                18,
+                                14,
+                                18,
+                                18,
+                              ),
+                              child: Center(
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    maxWidth: 1460,
+                                  ),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      SizedBox(
+                                        width: 236,
+                                        child: _providerSidebar(),
+                                      ),
+
+                                      const SizedBox(width: 18),
+
+                                      Expanded(
+                                        child: Align(
+                                          alignment: Alignment.topCenter,
+                                          child: ConstrainedBox(
+                                            constraints: const BoxConstraints(
+                                              maxWidth: 760,
                                             ),
-                                            const SizedBox(width: 18),
-                                            Expanded(
-                                              child: Align(
-                                                alignment: Alignment.topCenter,
-                                                child: ConstrainedBox(
-                                                  constraints:
-                                                      const BoxConstraints(
-                                                        maxWidth: 760,
-                                                      ),
-                                                  child: _buildDashboard(
-                                                    desktop,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 18),
-                                            SizedBox(
-                                              width: 260,
-                                              child: SingleChildScrollView(
-                                                primary: false,
-                                                padding: const EdgeInsets.only(
-                                                  bottom: 24,
-                                                ),
-                                                child:
-                                                    _providerCustomerThemeRightRail(),
-                                              ),
-                                            ),
-                                          ],
+                                            child: _buildDashboard(desktop),
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                  ))
-                          : (_providerFeedMode
-                                ? _providerExactCustomerFeedMobile()
-                                : _buildDashboard(false)),
+
+                                      const SizedBox(width: 18),
+
+                                      SizedBox(
+                                        width: 260,
+                                        child: SingleChildScrollView(
+                                          primary: false,
+                                          padding: const EdgeInsets.only(
+                                            bottom: 24,
+                                          ),
+                                          child:
+                                              _providerCustomerThemeRightRail(),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            )
+                          : _buildDashboard(false),
                     ),
                   ],
                 ),
@@ -25063,18 +25026,6 @@ class _ProviderCommandCenterScreenState
                       ),
                       NavigationDestination(
                         icon: _FancyCustomerNavIcon(
-                          icon: Icons.dynamic_feed_outlined,
-                          colors: [Color(0xFF36E6FF), Color(0xFF5168FF)],
-                        ),
-                        selectedIcon: _FancyCustomerNavIcon(
-                          icon: Icons.dynamic_feed_rounded,
-                          colors: [Color(0xFF36E6FF), Color(0xFF5168FF)],
-                          selected: true,
-                        ),
-                        label: 'Feed',
-                      ),
-                      NavigationDestination(
-                        icon: _FancyCustomerNavIcon(
                           icon: Icons.psychology_alt_rounded,
                           colors: [
                             Color(0xFFC52CFF),
@@ -25131,43 +25082,24 @@ class _ProviderCommandCenterScreenState
                       ),
                     ],
                     onDestinationSelected: (index) {
-                      if (index == 0) {
-                        _openProviderHome();
-                        return;
-                      }
-
                       setState(() {
                         _selectedIndex = index;
                       });
 
                       switch (index) {
                         case 1:
-                          _openProviderFeed();
-                          break;
-                        case 2:
                           _openModule('Agent Duke AI');
                           break;
-                        case 3:
+                        case 2:
                           _openModule('Bookings');
                           break;
-                        case 4:
+                        case 3:
                           _openModule('Earnings');
                           break;
-                        case 5:
+                        case 4:
                           _openModule('Provider Profile');
                           break;
                       }
-
-                      Future<void>.delayed(
-                        const Duration(milliseconds: 250),
-                        () {
-                          if (mounted) {
-                            setState(() {
-                              _selectedIndex = 0;
-                            });
-                          }
-                        },
-                      );
                     },
                   ),
                 ),
@@ -28613,194 +28545,6 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
 
   bool _selected(String title) => widget.title == title;
 
-  int _providerModuleMobileNavIndex() {
-    switch (widget.title) {
-      case 'Agent Duke AI':
-        return 2;
-
-      case 'Bookings':
-        return 3;
-
-      case 'Earnings':
-        return 4;
-
-      case 'Provider Profile':
-        return 5;
-
-      default:
-        return 0;
-    }
-  }
-
-  void _providerModuleMobileNavTap(int index) {
-    switch (index) {
-      case 0:
-        _backToCommandCenter();
-        break;
-
-      case 1:
-        _openProviderFeed();
-        break;
-
-      case 2:
-        _goTo('Agent Duke AI');
-        break;
-
-      case 3:
-        _goTo('Bookings');
-        break;
-
-      case 4:
-        _goTo('Earnings');
-        break;
-
-      case 5:
-        _goTo('Provider Profile');
-        break;
-    }
-  }
-
-  Widget _providerModuleMobileNav() {
-    return SafeArea(
-      top: false,
-      child: Container(
-        margin: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-        padding: const EdgeInsets.fromLTRB(6, 7, 6, 6),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(28),
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF071733), Color(0xFF050B1B), Color(0xFF060717)],
-          ),
-          border: Border.all(
-            color: const Color(0xFF2B9BFF).withValues(alpha: .48),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF3B2CFF).withValues(alpha: .20),
-              blurRadius: 26,
-              spreadRadius: 2,
-              offset: const Offset(0, -5),
-            ),
-            BoxShadow(
-              color: Colors.black.withValues(alpha: .60),
-              blurRadius: 24,
-              offset: const Offset(0, -8),
-            ),
-          ],
-        ),
-        child: NavigationBarTheme(
-          data: NavigationBarThemeData(
-            height: 72,
-            backgroundColor: Colors.transparent,
-            indicatorColor: Colors.transparent,
-            labelTextStyle: WidgetStateProperty.resolveWith<TextStyle>((
-              states,
-            ) {
-              final selected = states.contains(WidgetState.selected);
-
-              return TextStyle(
-                color: selected ? Colors.white : const Color(0xFFC6CDDD),
-                fontSize: 9.2,
-                fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
-              );
-            }),
-          ),
-          child: NavigationBar(
-            selectedIndex: _providerModuleMobileNavIndex(),
-            backgroundColor: Colors.transparent,
-            indicatorColor: Colors.transparent,
-            labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-            destinations: const [
-              NavigationDestination(
-                icon: _FancyCustomerNavIcon(
-                  icon: Icons.home_outlined,
-                  colors: [Color(0xFF11E6FF), Color(0xFF1678FF)],
-                ),
-                selectedIcon: _FancyCustomerNavIcon(
-                  icon: Icons.home_rounded,
-                  colors: [Color(0xFF11E6FF), Color(0xFF1678FF)],
-                  selected: true,
-                ),
-                label: 'Home',
-              ),
-              NavigationDestination(
-                icon: _FancyCustomerNavIcon(
-                  icon: Icons.dynamic_feed_outlined,
-                  colors: [Color(0xFF36E6FF), Color(0xFF5168FF)],
-                ),
-                selectedIcon: _FancyCustomerNavIcon(
-                  icon: Icons.dynamic_feed_rounded,
-                  colors: [Color(0xFF36E6FF), Color(0xFF5168FF)],
-                  selected: true,
-                ),
-                label: 'Feed',
-              ),
-              NavigationDestination(
-                icon: _FancyCustomerNavIcon(
-                  icon: Icons.psychology_alt_rounded,
-                  colors: [
-                    Color(0xFFC52CFF),
-                    Color(0xFF6257FF),
-                    Color(0xFF22D9FF),
-                  ],
-                ),
-                selectedIcon: _FancyCustomerNavIcon(
-                  icon: Icons.psychology_rounded,
-                  colors: [
-                    Color(0xFFC52CFF),
-                    Color(0xFF6257FF),
-                    Color(0xFF22D9FF),
-                  ],
-                  selected: true,
-                ),
-                label: 'AI',
-              ),
-              NavigationDestination(
-                icon: _FancyCustomerNavIcon(
-                  icon: Icons.calendar_month_outlined,
-                  colors: [Color(0xFF29D7FF), Color(0xFF5369FF)],
-                ),
-                selectedIcon: _FancyCustomerNavIcon(
-                  icon: Icons.calendar_month_rounded,
-                  colors: [Color(0xFF29D7FF), Color(0xFF5369FF)],
-                  selected: true,
-                ),
-                label: 'Bookings',
-              ),
-              NavigationDestination(
-                icon: _FancyCustomerNavIcon(
-                  icon: Icons.account_balance_wallet_outlined,
-                  colors: [Color(0xFF59E6A7), Color(0xFF23BFD4)],
-                ),
-                selectedIcon: _FancyCustomerNavIcon(
-                  icon: Icons.account_balance_wallet_rounded,
-                  colors: [Color(0xFF59E6A7), Color(0xFF23BFD4)],
-                  selected: true,
-                ),
-                label: 'Earnings',
-              ),
-              NavigationDestination(
-                icon: _FancyCustomerNavIcon(
-                  icon: Icons.person_outline_rounded,
-                  colors: [Color(0xFFFF5FCB), Color(0xFF895CFF)],
-                ),
-                selectedIcon: _FancyCustomerNavIcon(
-                  icon: Icons.person_rounded,
-                  colors: [Color(0xFFFF5FCB), Color(0xFF895CFF)],
-                  selected: true,
-                ),
-                label: 'Profile',
-              ),
-            ],
-            onDestinationSelected: _providerModuleMobileNavTap,
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _sidebar() {
     return Container(
       width: 220,
@@ -29007,6 +28751,18 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
       ),
       child: Row(
         children: [
+          if (!desktop) ...[
+            IconButton(
+              onPressed: () => Navigator.of(context).pop(),
+              icon: const Icon(
+                Icons.arrow_back_ios_new_rounded,
+                color: Colors.white70,
+                size: 18,
+              ),
+            ),
+            const SizedBox(width: 4),
+          ],
+
           Expanded(
             child: Text(
               widget.title.toUpperCase(),
@@ -32941,29 +32697,15 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
               child: FilledButton.icon(
                 onPressed: () => _goTo('Schedule & Availability'),
                 style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF4B24D9),
-                  foregroundColor: Colors.white,
-                  elevation: 8,
-                  shadowColor: const Color(0xFF9A4DFF).withValues(alpha: .55),
-                  side: BorderSide(
-                    color: const Color(0xFFB88CFF).withValues(alpha: .72),
-                    width: 1.15,
-                  ),
+                  backgroundColor: const Color(0xFF6645F5),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
                   ),
                 ),
-                icon: const Icon(
-                  Icons.auto_fix_high_rounded,
-                  color: Colors.white,
-                ),
+                icon: const Icon(Icons.auto_fix_high_rounded),
                 label: const Text(
                   'Optimize Schedule',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: .15,
-                  ),
+                  style: TextStyle(fontWeight: FontWeight.w900),
                 ),
               ),
             ),
@@ -33059,26 +32801,15 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
                   _showProviderAiRecommendations();
                 },
                 style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF5424D8),
-                  foregroundColor: Colors.white,
-                  elevation: 8,
-                  shadowColor: const Color(0xFFB24DFF).withValues(alpha: .55),
-                  side: BorderSide(
-                    color: const Color(0xFFC398FF).withValues(alpha: .72),
-                    width: 1.15,
-                  ),
+                  backgroundColor: const Color(0xFF7146F8),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
                   ),
                 ),
-                icon: const Icon(Icons.bolt_rounded, color: Colors.white),
+                icon: const Icon(Icons.bolt_rounded),
                 label: const Text(
                   'Apply Recommendations',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: .15,
-                  ),
+                  style: TextStyle(fontWeight: FontWeight.w900),
                 ),
               ),
             ),
@@ -35249,231 +34980,6 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
     );
   }
 
-  Widget _providerAiV8MobileShell(Widget child) {
-    return LayoutBuilder(
-      builder: (context, box) {
-        final mobile = box.maxWidth < 700;
-
-        if (!mobile) {
-          return child;
-        }
-
-        return Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Positioned(
-              top: -65,
-              right: -55,
-              child: IgnorePointer(
-                child: Container(
-                  width: 185,
-                  height: 185,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(
-                      colors: [
-                        const Color(0xFFB239FF).withValues(alpha: .20),
-                        const Color(0xFF5964FF).withValues(alpha: .08),
-                        Colors.transparent,
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              top: 170,
-              left: -75,
-              child: IgnorePointer(
-                child: Container(
-                  width: 180,
-                  height: 180,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(
-                      colors: [
-                        const Color(0xFF19DFFF).withValues(alpha: .12),
-                        Colors.transparent,
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Container(
-                  padding: const EdgeInsets.fromLTRB(15, 13, 15, 13),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(19),
-                    gradient: const LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        Color(0xFF121A42),
-                        Color(0xFF151039),
-                        Color(0xFF08162C),
-                      ],
-                    ),
-                    border: Border.all(
-                      color: const Color(0xFF42E8FF).withValues(alpha: .36),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF934CFF).withValues(alpha: .18),
-                        blurRadius: 28,
-                      ),
-                      BoxShadow(
-                        color: const Color(0xFF26DFFF).withValues(alpha: .08),
-                        blurRadius: 24,
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            width: 38,
-                            height: 38,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              gradient: const LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [
-                                  Color(0xFFD138FF),
-                                  Color(0xFF6D50FF),
-                                  Color(0xFF20DFFF),
-                                ],
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: const Color(0xFF9D4CFF)
-                                      .withValues(alpha: .38),
-                                  blurRadius: 20,
-                                ),
-                              ],
-                            ),
-                            child: const Icon(
-                              Icons.psychology_alt_rounded,
-                              color: Colors.white,
-                              size: 21,
-                            ),
-                          ),
-                          const SizedBox(width: 11),
-                          const Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'AGENT DUKE AI',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: .5,
-                                  ),
-                                ),
-                                SizedBox(height: 2),
-                                Text(
-                                  'V8 PROVIDER NEURAL COMMAND',
-                                  style: TextStyle(
-                                    color: Color(0xFFA996E6),
-                                    fontSize: 7.2,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: 1.25,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 9,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(20),
-                              color: const Color(0xFF59E6A7)
-                                  .withValues(alpha: .10),
-                              border: Border.all(
-                                color: const Color(0xFF59E6A7)
-                                    .withValues(alpha: .30),
-                              ),
-                            ),
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                CircleAvatar(
-                                  radius: 3,
-                                  backgroundColor: Color(0xFF59E6A7),
-                                ),
-                                SizedBox(width: 5),
-                                Text(
-                                  'LIVE',
-                                  style: TextStyle(
-                                    color: Color(0xFF59E6A7),
-                                    fontSize: 7.5,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: .7,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      const Text(
-                        'Real-time provider intelligence for bookings, revenue, scheduling, customers and growth.',
-                        style: TextStyle(
-                          color: Color(0xFFABB6D0),
-                          fontSize: 9.5,
-                          height: 1.45,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
-                        children: const [
-                          _ProviderAiV8Chip(
-                            icon: Icons.memory_rounded,
-                            label: 'AI CORE',
-                            value: 'ONLINE',
-                            accent: Color(0xFF29E5FF),
-                          ),
-                          _ProviderAiV8Chip(
-                            icon: Icons.hub_rounded,
-                            label: 'NEURAL LINK',
-                            value: 'STABLE',
-                            accent: Color(0xFFA95CFF),
-                          ),
-                          _ProviderAiV8Chip(
-                            icon: Icons.lock_outline_rounded,
-                            label: 'SESSION',
-                            value: 'SECURE',
-                            accent: Color(0xFF59E6A7),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-                child,
-              ],
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   Widget _content() {
     switch (widget.title) {
       case 'Bookings':
@@ -35492,7 +34998,7 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
         return _earnings();
 
       case 'Agent Duke AI':
-        return _providerAiV8MobileShell(_ai());
+        return _ai();
 
       case 'Messages':
         return _messages();
@@ -35519,7 +35025,7 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
       backgroundColor: bg,
       body: LayoutBuilder(
         builder: (context, constraints) {
-          final desktop = constraints.maxWidth >= 1180;
+          final desktop = constraints.maxWidth >= 980;
 
           return Stack(
             children: [
@@ -35567,64 +35073,6 @@ class _ProviderModuleScreenState extends State<_ProviderModuleScreen> {
             ],
           );
         },
-      ),
-      bottomNavigationBar: MediaQuery.sizeOf(context).width >= 1180
-          ? null
-          : _providerModuleMobileNav(),
-    );
-  }
-}
-
-class _ProviderAiV8Chip extends StatelessWidget {
-  const _ProviderAiV8Chip({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.accent,
-  });
-
-  final IconData icon;
-  final String label;
-  final String value;
-  final Color accent;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        gradient: LinearGradient(
-          colors: [accent.withValues(alpha: .14), const Color(0xFF0B1125)],
-        ),
-        border: Border.all(color: accent.withValues(alpha: .28)),
-        boxShadow: [
-          BoxShadow(color: accent.withValues(alpha: .07), blurRadius: 12),
-        ],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: accent, size: 11),
-          const SizedBox(width: 5),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Color(0xFF9AA7C0),
-              fontSize: 6.8,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(width: 4),
-          Text(
-            value,
-            style: TextStyle(
-              color: accent,
-              fontSize: 6.8,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ],
       ),
     );
   }

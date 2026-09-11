@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'community_member_profile.dart';
-import 'premium_share_sheet.dart';
 
 class CommunityFeedScreen extends StatefulWidget {
   const CommunityFeedScreen({
@@ -1845,7 +1844,15 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
                     ),
                   ),
                   InkWell(
-                    onTap: () => showPremiumWellnessShareSheet(context, post),
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Share this wellness post with your network.',
+                          ),
+                        ),
+                      );
+                    },
                     borderRadius: BorderRadius.circular(20),
                     child: const Padding(
                       padding: EdgeInsets.symmetric(horizontal: 8, vertical: 7),

@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'community_member_profile.dart';
-import 'premium_share_sheet.dart';
 
 class CommunityFeedScreen extends StatefulWidget {
   const CommunityFeedScreen({
@@ -1256,11 +1255,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
             : mobile
             ? 48.0
             : 56.0;
-        final fieldHeight = compact
-            ? 52.0
-            : mobile
-            ? 60.0
-            : 68.0;
+        final fieldHeight = compact ? 56.0 : 68.0;
         final actionGap = compact ? 6.0 : 9.0;
 
         return _glassPanel(
@@ -1354,7 +1349,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
                 ),
               ],
 
-              SizedBox(height: compact ? 8 : 14),
+              SizedBox(height: compact ? 10 : 14),
 
               Row(
                 children: [
@@ -1486,11 +1481,9 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
   }
 
   Widget _buildTabs() {
-    final compact = MediaQuery.sizeOf(context).width < 430;
-
     return Container(
-      height: compact ? 44 : 48,
-      padding: EdgeInsets.all(compact ? 3 : 4),
+      height: 48,
+      padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: const Color(0xFF071D42),
         borderRadius: BorderRadius.circular(18),
@@ -1536,7 +1529,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
       borderRadius: BorderRadius.circular(11),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        height: MediaQuery.sizeOf(context).width < 430 ? 36 : 40,
+        height: 40,
         decoration: BoxDecoration(
           gradient: selected
               ? const LinearGradient(
@@ -1582,7 +1575,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
               style: TextStyle(
                 color: selected ? Colors.white : const Color(0xFFA6B0C7),
                 fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                fontSize: MediaQuery.sizeOf(context).width < 430 ? 9.6 : 10.5,
+                fontSize: 10.5,
               ),
             ),
           ],
@@ -1613,9 +1606,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
     final liked = likedPostIds.contains(postId);
 
     return Padding(
-      padding: EdgeInsets.only(
-        top: MediaQuery.sizeOf(context).width < 430 ? 11 : 14,
-      ),
+      padding: const EdgeInsets.only(top: 14),
       child: _glassPanel(
         padding: EdgeInsets.zero,
         child: Column(
@@ -1845,7 +1836,15 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
                     ),
                   ),
                   InkWell(
-                    onTap: () => showPremiumWellnessShareSheet(context, post),
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Share this wellness post with your network.',
+                          ),
+                        ),
+                      );
+                    },
                     borderRadius: BorderRadius.circular(20),
                     child: const Padding(
                       padding: EdgeInsets.symmetric(horizontal: 8, vertical: 7),
@@ -2613,113 +2612,73 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
   Widget _embeddedContent() {
     final feedPosts = visiblePosts;
 
-    return LayoutBuilder(
-      builder: (context, box) {
-        final compact = box.maxWidth < 430;
-        final mobile = box.maxWidth < 600;
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: EdgeInsets.only(top: compact ? 2 : 1),
-                  child: Icon(
-                    Icons.groups_2_rounded,
-                    color: const Color(0xFF55DFFF),
-                    size: compact ? 21 : 25,
-                  ),
-                ),
-                SizedBox(width: compact ? 7 : 9),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        compact
-                            ? 'Neural Community Feed - LIVE NETWORK'
-                            : 'Neural Community Feed  -  LIVE NETWORK',
-                        maxLines: compact ? 2 : 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: compact
-                              ? 16.5
-                              : mobile
-                              ? 18
-                              : 20,
-                          height: compact ? 1.12 : 1.2,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: compact ? -.35 : 0,
-                        ),
-                      ),
-                      SizedBox(height: compact ? 4 : 2),
-                      Text(
-                        compact
-                            ? 'Real people. Real journeys. LIVE INTELLIGENCE - NEURAL LINK STABLE'
-                            : 'Real people. Real journeys. LIVE INTELLIGENCE - COMMUNITY SIGNAL - QUANTUM SYNC ACTIVE - NEURAL LINK STABLE',
-                        maxLines: compact ? 2 : 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: const Color(0xFF8793AD),
-                          fontSize: compact ? 8.2 : 9,
-                          height: compact ? 1.35 : 1.25,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                SizedBox(width: compact ? 1 : 4),
-                IconButton(
-                  onPressed: _loadFeed,
-                  tooltip: 'Refresh Feed',
-                  visualDensity: VisualDensity.compact,
-                  padding: EdgeInsets.all(compact ? 5 : 8),
-                  constraints: BoxConstraints(
-                    minWidth: compact ? 34 : 40,
-                    minHeight: compact ? 34 : 40,
-                  ),
-                  icon: Icon(
-                    Icons.refresh_rounded,
-                    color: const Color(0xFF6DBBFF),
-                    size: compact ? 21 : 24,
-                  ),
-                ),
-              ],
+            const Icon(
+              Icons.groups_2_rounded,
+              color: Color(0xFF55DFFF),
+              size: 25,
             ),
-            SizedBox(height: compact ? 10 : 13),
-            _buildComposer(),
-            SizedBox(height: compact ? 10 : 13),
-            _buildTabs(),
-            if (loading)
-              Padding(
-                padding: EdgeInsets.all(compact ? 48 : 70),
-                child: const Center(child: CircularProgressIndicator()),
-              )
-            else if (selectedTab == 2)
-              _buildLiveFeed()
-            else if (feedPosts.isEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: _glassPanel(
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 32),
-                    child: Center(
-                      child: Text(
-                        'No posts here yet.',
-                        style: TextStyle(color: Colors.white54),
-                      ),
+            const SizedBox(width: 9),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Neural Community Feed  -  LIVE NETWORK',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
                     ),
                   ),
-                ),
-              )
-            else
-              for (final post in feedPosts) _postCard(post),
+                  SizedBox(height: 2),
+                  Text(
+                    'Real people. Real journeys. LIVE INTELLIGENCE - COMMUNITY SIGNAL - QUANTUM SYNC ACTIVE - NEURAL LINK STABLE',
+                    style: TextStyle(color: Color(0xFF8793AD), fontSize: 9),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              onPressed: _loadFeed,
+              tooltip: 'Refresh Feed',
+              icon: const Icon(Icons.refresh_rounded, color: Color(0xFF6DBBFF)),
+            ),
           ],
-        );
-      },
+        ),
+        const SizedBox(height: 13),
+        _buildComposer(),
+        const SizedBox(height: 13),
+        _buildTabs(),
+        if (loading)
+          const Padding(
+            padding: EdgeInsets.all(70),
+            child: Center(child: CircularProgressIndicator()),
+          )
+        else if (selectedTab == 2)
+          _buildLiveFeed()
+        else if (feedPosts.isEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: _glassPanel(
+              child: const Padding(
+                padding: EdgeInsets.symmetric(vertical: 32),
+                child: Center(
+                  child: Text(
+                    'No posts here yet.',
+                    style: TextStyle(color: Colors.white54),
+                  ),
+                ),
+              ),
+            ),
+          )
+        else
+          for (final post in feedPosts) _postCard(post),
+      ],
     );
   }
 

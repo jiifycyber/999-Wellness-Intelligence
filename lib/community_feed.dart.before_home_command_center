@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'community_member_profile.dart';
-import 'premium_share_sheet.dart';
 
 class CommunityFeedScreen extends StatefulWidget {
   const CommunityFeedScreen({
@@ -14,14 +13,12 @@ class CommunityFeedScreen extends StatefulWidget {
     this.onNotifications,
     this.onMessages,
     this.onProfile,
-    this.embedded = false,
   });
 
   final VoidCallback? onSearch;
   final VoidCallback? onNotifications;
   final VoidCallback? onMessages;
   final VoidCallback? onProfile;
-  final bool embedded;
 
   @override
   State<CommunityFeedScreen> createState() => _CommunityFeedScreenState();
@@ -51,12 +48,12 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
   Map<String, int> commentCounts = {};
   Map<String, int> followerCounts = {};
 
-  static const Color bg = Color(0xFF01050F);
-  static const Color panel = Color(0xFF071D42);
-  static const Color panel2 = Color(0xFF092149);
-  static const Color purple = Color(0xFFA23CFF);
-  static const Color purple2 = Color(0xFFD43CFF);
-  static const Color cyan = Color(0xFF25EDFF);
+  static const Color bg = Color(0xFF030713);
+  static const Color panel = Color(0xFF091122);
+  static const Color panel2 = Color(0xFF0B1730);
+  static const Color purple = Color(0xFF7137FF);
+  static const Color purple2 = Color(0xFFB05CFF);
+  static const Color cyan = Color(0xFF39D8FF);
   static const Color pink = Color(0xFFFF4D87);
 
   @override
@@ -690,11 +687,11 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         gradient: const LinearGradient(
-          colors: [Color(0xFFD12CFF), Color(0xFF5A55FF), Color(0xFF18E6FF)],
+          colors: [Color(0xFF7F3DFF), Color(0xFF2C58B9)],
         ),
-        border: Border.all(color: const Color(0xFF48F0FF), width: 1.8),
+        border: Border.all(color: const Color(0xFF8DE7FF), width: 1.2),
         boxShadow: [
-          BoxShadow(color: purple.withValues(alpha: .42), blurRadius: 22),
+          BoxShadow(color: purple.withValues(alpha: .24), blurRadius: 18),
         ],
       ),
       clipBehavior: Clip.antiAlias,
@@ -770,19 +767,19 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            const Color(0xFF0A2A61).withValues(alpha: .97),
-            const Color(0xFF040914).withValues(alpha: .99),
+            const Color(0xFF0C1830).withValues(alpha: .96),
+            const Color(0xFF071020).withValues(alpha: .98),
           ],
         ),
-        borderRadius: BorderRadius.circular(23),
+        borderRadius: BorderRadius.circular(19),
         border: Border.all(
-          color: const Color(0xFF32D7FF).withValues(alpha: .60),
-          width: 1.0,
+          color: const Color(0xFF35588E).withValues(alpha: .42),
+          width: .8,
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF132C66).withValues(alpha: .24),
-            blurRadius: 50,
+            color: const Color(0xFF071329).withValues(alpha: .55),
+            blurRadius: 28,
             offset: const Offset(0, 12),
           ),
         ],
@@ -847,7 +844,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
                   ),
                 Icon(
                   icon,
-                  size: 20,
+                  size: 18,
                   color: selected
                       ? const Color(0xFF72E3FF)
                       : const Color(0xFFC3CAE0),
@@ -1099,14 +1096,14 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
                   color: Colors.transparent,
                   child: InkWell(
                     onTap: widget.onSearch,
-                    borderRadius: BorderRadius.circular(18),
+                    borderRadius: BorderRadius.circular(15),
                     child: Container(
                       constraints: const BoxConstraints(maxWidth: 590),
                       height: 44,
                       padding: const EdgeInsets.symmetric(horizontal: 15),
                       decoration: BoxDecoration(
                         color: const Color(0xFF0B1831),
-                        borderRadius: BorderRadius.circular(18),
+                        borderRadius: BorderRadius.circular(15),
                         border: Border.all(
                           color: const Color(0xFF4268A3).withValues(alpha: .82),
                         ),
@@ -1116,7 +1113,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
                           Icon(
                             Icons.search_rounded,
                             color: Color(0xFFCBD8F3),
-                            size: 20,
+                            size: 19,
                           ),
                           SizedBox(width: 11),
                           Expanded(
@@ -1158,12 +1155,12 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
               color: Colors.transparent,
               child: InkWell(
                 onTap: widget.onProfile,
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(15),
                 child: Container(
                   height: 45,
                   padding: const EdgeInsets.fromLTRB(6, 4, 11, 4),
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(18),
+                    borderRadius: BorderRadius.circular(15),
                     border: Border.all(
                       color: const Color(0xFF2F4F7D).withValues(alpha: .75),
                     ),
@@ -1201,7 +1198,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
                       const Icon(
                         Icons.keyboard_arrow_down_rounded,
                         color: Color(0xFF8897B9),
-                        size: 20,
+                        size: 18,
                       ),
                     ],
                   ),
@@ -1241,207 +1238,172 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
   }
 
   Widget _buildComposer() {
-    return LayoutBuilder(
-      builder: (context, box) {
-        final compact = box.maxWidth < 430;
-        final mobile = box.maxWidth < 600;
-
-        final panelPadding = compact
-            ? 12.0
-            : mobile
-            ? 14.0
-            : 18.0;
-        final avatarSize = compact
-            ? 44.0
-            : mobile
-            ? 48.0
-            : 56.0;
-        final fieldHeight = compact
-            ? 52.0
-            : mobile
-            ? 60.0
-            : 68.0;
-        final actionGap = compact ? 6.0 : 9.0;
-
-        return _glassPanel(
-          padding: EdgeInsets.all(panelPadding),
-          child: Column(
+    return _glassPanel(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _avatar(currentPhoto, currentName, size: avatarSize),
-                  SizedBox(width: compact ? 9 : 13),
-                  Expanded(
-                    child: Container(
-                      constraints: BoxConstraints(minHeight: fieldHeight),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF103873),
-                        borderRadius: BorderRadius.circular(compact ? 15 : 18),
-                        border: Border.all(
-                          color: const Color(0xFF36E6FF).withValues(alpha: .82),
-                        ),
+              _avatar(currentPhoto, currentName, size: 52),
+              const SizedBox(width: 13),
+              Expanded(
+                child: Container(
+                  constraints: const BoxConstraints(minHeight: 61),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF10203E),
+                    borderRadius: BorderRadius.circular(15),
+                    border: Border.all(
+                      color: const Color(0xFF5577B6).withValues(alpha: .88),
+                    ),
+                  ),
+                  child: TextField(
+                    controller: postController,
+                    minLines: 1,
+                    maxLines: 6,
+                    style: const TextStyle(color: Colors.white, fontSize: 12),
+                    decoration: const InputDecoration(
+                      border: InputBorder.none,
+                      hintText: "What's happening in the community?",
+                      hintStyle: TextStyle(
+                        color: Color(0xFFA8B3CC),
+                        fontSize: 11,
                       ),
-                      child: TextField(
-                        controller: postController,
-                        minLines: 1,
-                        maxLines: 6,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: compact ? 11 : 12,
-                        ),
-                        decoration: InputDecoration(
-                          border: InputBorder.none,
-                          hintText: compact ? "What's on your mind?" : "Transmit a wellness signal to the neural network...",
-                          hintStyle: TextStyle(
-                            color: const Color(0xFFA8B3CC),
-                            fontSize: compact ? 11 : 12,
-                          ),
-                          contentPadding: EdgeInsets.symmetric(
-                            horizontal: compact ? 13 : 17,
-                            vertical: compact ? 18 : 24,
-                          ),
-                        ),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 17,
+                        vertical: 21,
                       ),
                     ),
                   ),
-                ],
+                ),
               ),
-
-              if (pendingImage != null) ...[
-                const SizedBox(height: 10),
-                Padding(
-                  padding: EdgeInsets.only(left: compact ? 0 : avatarSize + 7),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
+            ],
+          ),
+          if (pendingImage != null) ...[
+            const SizedBox(height: 10),
+            Padding(
+              padding: const EdgeInsets.only(left: 63),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0B1730),
+                  borderRadius: BorderRadius.circular(11),
+                  border: Border.all(color: const Color(0xFF314A78)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.image_outlined, color: cyan, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        pendingImage!.name,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 10,
+                        ),
+                      ),
                     ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0B1730),
-                      borderRadius: BorderRadius.circular(11),
-                      border: Border.all(color: const Color(0xFF314A78)),
+                    InkWell(
+                      onTap: () {
+                        setState(() {
+                          pendingImage = null;
+                        });
+                      },
+                      child: const Icon(
+                        Icons.close_rounded,
+                        color: Colors.white54,
+                        size: 18,
+                      ),
                     ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.image_outlined, color: cyan, size: 18),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            pendingImage!.name,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 10,
+                  ],
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(height: 14),
+          Padding(
+            padding: const EdgeInsets.only(left: 65),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _composerButton(
+                    icon: Icons.photo_camera_outlined,
+                    label: 'Photo',
+                    onTap: _pickPhoto,
+                  ),
+                ),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: _composerButton(
+                    icon: Icons.videocam_outlined,
+                    label: 'Go Live',
+                    onTap: _goLiveSetup,
+                  ),
+                ),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: InkWell(
+                    onTap: posting ? null : _createPost,
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      height: 40,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [
+                            Color(0xFF923EFF),
+                            Color(0xFF653FFF),
+                            Color(0xFF30BFFF),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: purple.withValues(alpha: .22),
+                            blurRadius: 15,
+                          ),
+                        ],
+                      ),
+                      alignment: Alignment.center,
+                      child: posting
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.send_rounded,
+                                  color: Colors.white,
+                                  size: 16,
+                                ),
+                                SizedBox(width: 7),
+                                Text(
+                                  'Post',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                        ),
-                        InkWell(
-                          onTap: () {
-                            setState(() {
-                              pendingImage = null;
-                            });
-                          },
-                          child: const Icon(
-                            Icons.close_rounded,
-                            color: Colors.white54,
-                            size: 20,
-                          ),
-                        ),
-                      ],
                     ),
                   ),
                 ),
               ],
-
-              SizedBox(height: compact ? 8 : 14),
-
-              Row(
-                children: [
-                  Expanded(
-                    child: _composerButton(
-                      icon: Icons.photo_camera_outlined,
-                      label: "Photo",
-                      onTap: _pickPhoto,
-                    ),
-                  ),
-                  SizedBox(width: actionGap),
-                  Expanded(
-                    child: _composerButton(
-                      icon: Icons.videocam_outlined,
-                      label: "Go Live",
-                      onTap: _goLiveSetup,
-                    ),
-                  ),
-                  SizedBox(width: actionGap),
-                  Expanded(
-                    child: InkWell(
-                      onTap: posting ? null : _createPost,
-                      borderRadius: BorderRadius.circular(12),
-                      child: Container(
-                        height: 44,
-                        padding: EdgeInsets.symmetric(
-                          horizontal: compact ? 6 : 9,
-                        ),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [
-                              Color(0xFFC326FF),
-                              Color(0xFF6056FF),
-                              Color(0xFF14E3FF),
-                            ],
-                          ),
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: purple.withValues(alpha: .22),
-                              blurRadius: 15,
-                            ),
-                          ],
-                        ),
-                        alignment: Alignment.center,
-                        child: posting
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(
-                                    Icons.send_rounded,
-                                    color: Colors.white,
-                                    size: 16,
-                                  ),
-                                  SizedBox(width: compact ? 4 : 7),
-                                  Flexible(
-                                    child: Text(
-                                      compact ? "Post" : "Transmit Post",
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: compact ? 10 : 11,
-                                        fontWeight: FontWeight.w800,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+            ),
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 
@@ -1454,11 +1416,11 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Container(
-        height: 44,
+        height: 40,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFF3F79C7)),
-          color: const Color(0xFF091A38),
+          border: Border.all(color: const Color(0xFF3D5E95)),
+          color: const Color(0xFF09162C),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -1468,7 +1430,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
               color: label == 'Go Live'
                   ? const Color(0xFFFF4D87)
                   : const Color(0xFFD8E3F8),
-              size: 20,
+              size: 17,
             ),
             const SizedBox(width: 7),
             Text(
@@ -1486,29 +1448,27 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
   }
 
   Widget _buildTabs() {
-    final compact = MediaQuery.sizeOf(context).width < 430;
-
     return Container(
-      height: compact ? 44 : 48,
-      padding: EdgeInsets.all(compact ? 3 : 4),
+      height: 43,
+      padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: const Color(0xFF071D42),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFF35B9FF)),
+        color: const Color(0xFF071328),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: const Color(0xFF31507E)),
       ),
       child: Row(
         children: [
           Expanded(
             child: _tabButton(
               index: 0,
-              label: 'Neural For You',
+              label: 'For You',
               icon: Icons.auto_awesome_rounded,
             ),
           ),
           Expanded(
             child: _tabButton(
               index: 1,
-              label: 'Network',
+              label: 'Following',
               icon: Icons.people_alt_outlined,
             ),
           ),
@@ -1536,23 +1496,19 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
       borderRadius: BorderRadius.circular(11),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        height: MediaQuery.sizeOf(context).width < 430 ? 36 : 40,
+        height: 35,
         decoration: BoxDecoration(
           gradient: selected
               ? const LinearGradient(
-                  colors: [
-                    Color(0xFF9B30FF),
-                    Color(0xFF5B49FF),
-                    Color(0xFF1BAFFF),
-                  ],
+                  colors: [Color(0xFF6C35FF), Color(0xFF4732E7)],
                 )
               : null,
           borderRadius: BorderRadius.circular(11),
           boxShadow: selected
               ? [
                   BoxShadow(
-                    color: purple.withValues(alpha: .42),
-                    blurRadius: 18,
+                    color: purple.withValues(alpha: .23),
+                    blurRadius: 12,
                   ),
                 ]
               : null,
@@ -1582,7 +1538,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
               style: TextStyle(
                 color: selected ? Colors.white : const Color(0xFFA6B0C7),
                 fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                fontSize: MediaQuery.sizeOf(context).width < 430 ? 9.6 : 10.5,
+                fontSize: 10.5,
               ),
             ),
           ],
@@ -1613,23 +1569,21 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
     final liked = likedPostIds.contains(postId);
 
     return Padding(
-      padding: EdgeInsets.only(
-        top: MediaQuery.sizeOf(context).width < 430 ? 11 : 14,
-      ),
+      padding: const EdgeInsets.only(top: 10),
       child: _glassPanel(
         padding: EdgeInsets.zero,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(18, 16, 15, 7),
+              padding: const EdgeInsets.fromLTRB(16, 13, 13, 4),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _avatar(
                     photo,
                     name,
-                    size: 48,
+                    size: 44,
                     onTap: () => _openMemberProfile(
                       userId: authorId,
                       name: name,
@@ -1651,8 +1605,8 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
                               name,
                               style: const TextStyle(
                                 color: Colors.white,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w900,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
                               ),
                             ),
                             Container(
@@ -1662,14 +1616,14 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
                               ),
                               decoration: BoxDecoration(
                                 color: role == 'provider'
-                                    ? const Color(0xFF0D5164)
-                                    : const Color(0xFF1A3779),
+                                    ? const Color(0xFF143F52)
+                                    : const Color(0xFF12315D),
                                 borderRadius: BorderRadius.circular(20),
                                 border: Border.all(
                                   color: role == 'provider'
-                                      ? const Color(0xFF32FFE0)
+                                      ? const Color(0xFF27B9D7)
                                             .withValues(alpha: .7)
-                                      : const Color(0xFF7084FF)
+                                      : const Color(0xFF367BE7)
                                             .withValues(alpha: .6),
                                 ),
                               ),
@@ -1679,8 +1633,8 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
                                     : 'Customer',
                                 style: TextStyle(
                                   color: role == 'provider'
-                                      ? const Color(0xFF6BFFE1)
-                                      : const Color(0xFF9DAAFF),
+                                      ? const Color(0xFF5FE5F4)
+                                      : const Color(0xFF77B5FF),
                                   fontSize: 8,
                                   fontWeight: FontWeight.w700,
                                 ),
@@ -1715,7 +1669,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
                         minimumSize: Size.zero,
                       ),
                       child: Text(
-                        following ? 'Network' : 'Follow',
+                        following ? 'Following' : 'Follow',
                         style: const TextStyle(
                           fontSize: 9,
                           fontWeight: FontWeight.w800,
@@ -1734,7 +1688,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
                     icon: const Icon(
                       Icons.more_horiz_rounded,
                       color: Color(0xFF9BA6BF),
-                      size: 20,
+                      size: 19,
                     ),
                   ),
                 ],
@@ -1742,28 +1696,28 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
             ),
             if (body.isNotEmpty)
               Padding(
-                padding: const EdgeInsets.fromLTRB(18, 8, 18, 12),
+                padding: const EdgeInsets.fromLTRB(70, 3, 18, 8),
                 child: Text(
                   body,
                   style: const TextStyle(
                     color: Color(0xFFE8EDF7),
-                    fontSize: 13,
-                    height: 1.5,
+                    fontSize: 12,
+                    height: 1.42,
                     fontWeight: FontWeight.w400,
                   ),
                 ),
               ),
             if (media.isNotEmpty)
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 7, 16, 13),
+                padding: const EdgeInsets.fromLTRB(16, 5, 16, 11),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(18),
+                  borderRadius: BorderRadius.circular(14),
                   child: Image.network(
                     media,
                     fit: BoxFit.cover,
                     errorBuilder: (_, __, ___) {
                       return Container(
-                        height: 260,
+                        height: 210,
                         color: const Color(0xFF091327),
                         alignment: Alignment.center,
                         child: const Icon(
@@ -1777,7 +1731,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
                 ),
               ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(15, 2, 15, 10),
+              padding: const EdgeInsets.fromLTRB(61, 0, 12, 7),
               child: Row(
                 children: [
                   InkWell(
@@ -1799,7 +1753,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
                             color: liked
                                 ? const Color(0xFFFF4D78)
                                 : const Color(0xFF98A5C1),
-                            size: 20,
+                            size: 18,
                           ),
                           const SizedBox(width: 5),
                           Text(
@@ -1829,7 +1783,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
                           const Icon(
                             Icons.chat_bubble_outline_rounded,
                             color: Color(0xFF98A5C1),
-                            size: 20,
+                            size: 17,
                           ),
                           const SizedBox(width: 5),
                           Text(
@@ -1845,7 +1799,15 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
                     ),
                   ),
                   InkWell(
-                    onTap: () => showPremiumWellnessShareSheet(context, post),
+                    onTap: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Sharing options will be connected next.',
+                          ),
+                        ),
+                      );
+                    },
                     borderRadius: BorderRadius.circular(20),
                     child: const Padding(
                       padding: EdgeInsets.symmetric(horizontal: 8, vertical: 7),
@@ -1854,7 +1816,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
                           Icon(
                             Icons.ios_share_outlined,
                             color: Color(0xFF98A5C1),
-                            size: 20,
+                            size: 17,
                           ),
                           SizedBox(width: 5),
                           Text(
@@ -1873,7 +1835,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
                   const Icon(
                     Icons.bookmark_border_rounded,
                     color: Color(0xFF98A5C1),
-                    size: 20,
+                    size: 19,
                   ),
                   const SizedBox(width: 5),
                 ],
@@ -1966,7 +1928,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
           BoxShadow(color: pink.withValues(alpha: .13), blurRadius: 25),
         ],
       ),
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(16),
       child: Row(
         children: [
           _avatar(photo, name, size: 54),
@@ -2016,7 +1978,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
               const Icon(
                 Icons.visibility_outlined,
                 color: Colors.white70,
-                size: 20,
+                size: 19,
               ),
               const SizedBox(height: 3),
               Text(
@@ -2429,7 +2391,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
                           Icon(
                             Icons.play_arrow_rounded,
                             color: Colors.white,
-                            size: 20,
+                            size: 17,
                           ),
                           SizedBox(width: 5),
                           Text(
@@ -2610,119 +2572,6 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
     );
   }
 
-  Widget _embeddedContent() {
-    final feedPosts = visiblePosts;
-
-    return LayoutBuilder(
-      builder: (context, box) {
-        final compact = box.maxWidth < 430;
-        final mobile = box.maxWidth < 600;
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: EdgeInsets.only(top: compact ? 2 : 1),
-                  child: Icon(
-                    Icons.groups_2_rounded,
-                    color: const Color(0xFF55DFFF),
-                    size: compact ? 21 : 25,
-                  ),
-                ),
-                SizedBox(width: compact ? 7 : 9),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        compact
-                            ? 'Neural Community Feed - LIVE NETWORK'
-                            : 'Neural Community Feed  -  LIVE NETWORK',
-                        maxLines: compact ? 2 : 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: compact
-                              ? 16.5
-                              : mobile
-                              ? 18
-                              : 20,
-                          height: compact ? 1.12 : 1.2,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: compact ? -.35 : 0,
-                        ),
-                      ),
-                      SizedBox(height: compact ? 4 : 2),
-                      Text(
-                        compact
-                            ? 'Real people. Real journeys. LIVE INTELLIGENCE - NEURAL LINK STABLE'
-                            : 'Real people. Real journeys. LIVE INTELLIGENCE - COMMUNITY SIGNAL - QUANTUM SYNC ACTIVE - NEURAL LINK STABLE',
-                        maxLines: compact ? 2 : 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: const Color(0xFF8793AD),
-                          fontSize: compact ? 8.2 : 9,
-                          height: compact ? 1.35 : 1.25,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                SizedBox(width: compact ? 1 : 4),
-                IconButton(
-                  onPressed: _loadFeed,
-                  tooltip: 'Refresh Feed',
-                  visualDensity: VisualDensity.compact,
-                  padding: EdgeInsets.all(compact ? 5 : 8),
-                  constraints: BoxConstraints(
-                    minWidth: compact ? 34 : 40,
-                    minHeight: compact ? 34 : 40,
-                  ),
-                  icon: Icon(
-                    Icons.refresh_rounded,
-                    color: const Color(0xFF6DBBFF),
-                    size: compact ? 21 : 24,
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: compact ? 10 : 13),
-            _buildComposer(),
-            SizedBox(height: compact ? 10 : 13),
-            _buildTabs(),
-            if (loading)
-              Padding(
-                padding: EdgeInsets.all(compact ? 48 : 70),
-                child: const Center(child: CircularProgressIndicator()),
-              )
-            else if (selectedTab == 2)
-              _buildLiveFeed()
-            else if (feedPosts.isEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: _glassPanel(
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 32),
-                    child: Center(
-                      child: Text(
-                        'No posts here yet.',
-                        style: TextStyle(color: Colors.white54),
-                      ),
-                    ),
-                  ),
-                ),
-              )
-            else
-              for (final post in feedPosts) _postCard(post),
-          ],
-        );
-      },
-    );
-  }
-
   Widget _mobileContent() {
     final feedPosts = visiblePosts;
 
@@ -2824,10 +2673,6 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.embedded) {
-      return _embeddedContent();
-    }
-
     final desktop = MediaQuery.sizeOf(context).width >= 1050;
 
     return Scaffold(
@@ -3005,7 +2850,7 @@ class _FeedCommentsSheetState extends State<_FeedCommentsSheet> {
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
                             color: const Color(0xFF111828),
-                            borderRadius: BorderRadius.circular(18),
+                            borderRadius: BorderRadius.circular(14),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
