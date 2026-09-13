@@ -6615,7 +6615,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
               ),
             if (_firstPostUrl(body) != null && !hasPhoto)
               _postLinkPreview(body),
-            if (hasMusic && !hasPhoto) _musicFeedCard(post),
+            if (hasMusic && !hasPhoto && body.isEmpty) _musicFeedCard(post),
             if (media.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 7, 16, 13),
