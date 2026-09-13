@@ -1,0 +1,529 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+class CommunityLocationPicker extends StatefulWidget {
+  const CommunityLocationPicker({super.key});
+
+  @override
+  State<CommunityLocationPicker> createState() =>
+      _CommunityLocationPickerState();
+}
+
+class _CommunityLocationPickerState extends State<CommunityLocationPicker> {
+  final TextEditingController searchController = TextEditingController();
+
+  Timer? debounce;
+  bool searching = false;
+  bool locating = false;
+  String? error;
+
+  List<Map<String, dynamic>> results = [];
+
+  @override
+  void dispose() {
+    debounce?.cancel();
+    searchController.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String value) {
+    debounce?.cancel();
+
+    final query = value.trim();
+
+    if (query.length < 2) {
+      setState(() {
+        results = [];
+        searching = false;
+        error = null;
+      });
+      return;
+    }
+
+    debounce = Timer(const Duration(milliseconds: 350), () {
+      _searchPlaces(query);
+    });
+  }
+
+  Future<void> _searchPlaces(String query) async {
+    if (!mounted) return;
+
+    setState(() {
+      searching = true;
+      error = null;
+    });
+
+    try {
+      final response = await Supabase.instance.client.functions.invoke(
+        'place-search',
+        body: {'action': 'search', 'query': query},
+      );
+
+      final data = response.data;
+
+      if (data is! Map) {
+        throw Exception('Invalid place search response.');
+      }
+
+      final raw = data['results'];
+
+      final mapped = raw is List
+          ? raw
+                .whereType<Map>()
+                .map((item) => Map<String, dynamic>.from(item))
+                .toList()
+          : <Map<String, dynamic>>[];
+
+      if (!mounted) return;
+
+      setState(() {
+        results = mapped;
+        searching = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        searching = false;
+        error = 'Unable to search places right now.';
+      });
+    }
+  }
+
+  Future<void> _useCurrentLocation() async {
+    if (locating) return;
+
+    setState(() {
+      locating = true;
+      error = null;
+    });
+
+    try {
+      var permission = await Geolocator.checkPermission();
+
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+
+      if (permission == LocationPermission.denied) {
+        throw Exception('Location permission denied.');
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        throw Exception('Location permission is disabled in device settings.');
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium,
+        ),
+      );
+
+      final response = await Supabase.instance.client.functions.invoke(
+        'place-search',
+        body: {
+          'action': 'reverse',
+          'lat': position.latitude,
+          'lng': position.longitude,
+        },
+      );
+
+      final data = response.data;
+
+      if (data is! Map || data['place'] is! Map) {
+        throw Exception('Unable to identify this location.');
+      }
+
+      final place = Map<String, dynamic>.from(data['place'] as Map);
+
+      if (!mounted) return;
+
+      Navigator.of(context).pop(place);
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        locating = false;
+        error = e.toString().replaceFirst('Exception: ', '');
+      });
+    }
+  }
+
+  void _selectPlace(Map<String, dynamic> place) {
+    Navigator.of(context).pop(place);
+  }
+
+  Widget _locationButton() {
+    return InkWell(
+      onTap: locating ? null : _useCurrentLocation,
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF102E5A), Color(0xFF172458), Color(0xFF251755)],
+          ),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: const Color(0xFF44DEFF).withValues(alpha: .55),
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  colors: [Color(0xFFFF4D78), Color(0xFFFF7D5F)],
+                ),
+              ),
+              child: locating
+                  ? const Padding(
+                      padding: EdgeInsets.all(13),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.my_location_rounded, color: Colors.white),
+            ),
+            const SizedBox(width: 13),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Use my current location',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  SizedBox(height: 3),
+                  Text(
+                    'Find nearby cities and places',
+                    style: TextStyle(color: Color(0xFFAAB8D6), fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded, color: Color(0xFF76EFFF)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _resultTile(Map<String, dynamic> place) {
+    final name = place['name']?.toString().trim() ?? 'Unknown place';
+    final subtitle = place['subtitle']?.toString().trim() ?? '';
+
+    return InkWell(
+      onTap: () => _selectPlace(place),
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(13),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0B1930),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: const Color(0xFF536EFF).withValues(alpha: .25),
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: const Color(0xFF5B43FF).withValues(alpha: .20),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.location_on_rounded,
+                color: Color(0xFF9C83FF),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    name,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  if (subtitle.isNotEmpty) ...[
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF8998B8),
+                        fontSize: 10.5,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<Map<String, dynamic>> _rankedLocationResults() {
+    final query = searchController.text.trim().toLowerCase();
+    final ranked = List<Map<String, dynamic>>.from(results);
+
+    String value(Map<String, dynamic> place, String key) {
+      return place[key]?.toString().trim().toLowerCase() ?? '';
+    }
+
+    bool isCityType(Map<String, dynamic> place) {
+      final type = value(place, 'type');
+      final addressType = value(place, 'addresstype');
+
+      const cityTypes = {
+        'city',
+        'town',
+        'village',
+        'municipality',
+        'borough',
+        'hamlet',
+      };
+
+      return cityTypes.contains(type) || cityTypes.contains(addressType);
+    }
+
+    int score(Map<String, dynamic> place) {
+      final name = value(place, 'name');
+      final city = value(place, 'city');
+      final fullName = value(place, 'full_name');
+      final countryCode = value(place, 'country_code');
+
+      var points = 0;
+
+      if (countryCode == 'us') {
+        points += 10000;
+      }
+
+      if (isCityType(place)) {
+        points += 7000;
+      }
+
+      if (query.isNotEmpty) {
+        if (name == query) {
+          points += 7000;
+        } else if (name.startsWith(query)) {
+          points += 6000;
+        } else if (name.contains(query)) {
+          points += 2500;
+        }
+
+        if (city == query) {
+          points += 6500;
+        } else if (city.startsWith(query)) {
+          points += 5500;
+        } else if (city.contains(query)) {
+          points += 2200;
+        }
+
+        if (fullName.startsWith(query)) {
+          points += 1800;
+        } else if (fullName.contains(query)) {
+          points += 800;
+        }
+      }
+
+      final importanceRaw = place['importance'];
+
+      if (importanceRaw is num) {
+        points += (importanceRaw.toDouble() * 1000).round();
+      } else {
+        final importance =
+            double.tryParse(importanceRaw?.toString() ?? '') ?? 0;
+        points += (importance * 1000).round();
+      }
+
+      return points;
+    }
+
+    ranked.sort((a, b) {
+      final scoreCompare = score(b).compareTo(score(a));
+
+      if (scoreCompare != 0) {
+        return scoreCompare;
+      }
+
+      return value(a, 'name').compareTo(value(b, 'name'));
+    });
+
+    return ranked;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final rankedResults = _rankedLocationResults();
+    return Scaffold(
+      backgroundColor: const Color(0xFF030914),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF071326),
+        foregroundColor: Colors.white,
+        title: const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Add Location', style: TextStyle(fontWeight: FontWeight.w900)),
+            Text(
+              '999 WELLNESS',
+              style: TextStyle(
+                color: Color(0xFF5CEBFF),
+                fontSize: 9,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 2,
+              ),
+            ),
+          ],
+        ),
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: TextField(
+                controller: searchController,
+                autofocus: true,
+                onChanged: _onSearchChanged,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                ),
+                decoration: InputDecoration(
+                  hintText: 'Search cities and places',
+                  hintStyle: const TextStyle(color: Color(0xFF7D8BAA)),
+                  prefixIcon: const Icon(
+                    Icons.search_rounded,
+                    color: Color(0xFF55E6FF),
+                  ),
+                  suffixIcon: searchController.text.isEmpty
+                      ? null
+                      : IconButton(
+                          onPressed: () {
+                            searchController.clear();
+                            setState(() {
+                              results = [];
+                              error = null;
+                            });
+                          },
+                          icon: const Icon(
+                            Icons.close_rounded,
+                            color: Colors.white54,
+                          ),
+                        ),
+                  filled: true,
+                  fillColor: const Color(0xFF0B1830),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(18),
+                    borderSide: BorderSide.none,
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(18),
+                    borderSide: BorderSide(
+                      color: const Color(0xFF4B6CFF).withValues(alpha: .25),
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(18),
+                    borderSide: const BorderSide(color: Color(0xFF35E5FF)),
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
+              child: _locationButton(),
+            ),
+            if (error != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 6,
+                ),
+                child: Text(
+                  error!,
+                  style: const TextStyle(
+                    color: Color(0xFFFF7891),
+                    fontSize: 11,
+                  ),
+                ),
+              ),
+            if (searching)
+              const Padding(
+                padding: EdgeInsets.all(20),
+                child: CircularProgressIndicator(color: Color(0xFF54E9FF)),
+              ),
+            if (!searching)
+              Expanded(
+                child: results.isEmpty
+                    ? const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(28),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.location_searching_rounded,
+                                size: 54,
+                                color: Color(0xFF586A92),
+                              ),
+                              SizedBox(height: 12),
+                              Text(
+                                'Type a few letters',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              SizedBox(height: 5),
+                              Text(
+                                'Example: Lou for Louisville',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Color(0xFF7F8CA8),
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 30),
+                        itemCount: rankedResults.length,
+                        itemBuilder: (context, index) {
+                          return _resultTile(rankedResults[index]);
+                        },
+                      ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}

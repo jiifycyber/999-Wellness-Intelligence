@@ -43,7 +43,15 @@
 					<string>$(PRODUCT_MODULE_NAME).SceneDelegate</string>
 					<key>UISceneStoryboardFile</key>
 					<string>Main</string>
-				</dict>
+				
+	<key>NSCameraUsageDescription</key>
+	<string>999 Wellness uses the camera so you can create Stories and Reels.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>999 Wellness uses the microphone when you record Stories, Reels, and live wellness video.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>999 Wellness uses your photo library so you can upload photos and videos to Stories and Reels.</string>
+
+</dict>
 			</array>
 		</dict>
 	</dict>

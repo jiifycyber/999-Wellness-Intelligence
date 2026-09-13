@@ -1,0 +1,354 @@
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+
+const headers = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+  "Content-Type": "application/json",
+};
+
+function clean(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function uniqueParts(values: string[]): string[] {
+  const seen = new Set<string>();
+  const output: string[] = [];
+
+  for (const value of values) {
+    const trimmed = value.trim();
+
+    if (!trimmed) continue;
+
+    const key = trimmed.toLowerCase();
+
+    if (seen.has(key)) continue;
+
+    seen.add(key);
+    output.push(trimmed);
+  }
+
+  return output;
+}
+
+function mapPlace(row: Record<string, unknown>) {
+  const address =
+    row.address && typeof row.address === "object"
+      ? row.address as Record<string, unknown>
+      : {};
+
+  const city =
+    clean(address.city) ||
+    clean(address.town) ||
+    clean(address.village) ||
+    clean(address.municipality) ||
+    clean(address.hamlet) ||
+    clean(address.county);
+
+  const state = clean(address.state);
+  const stateCode =
+    clean(address["ISO3166-2-lvl4"]).replace(/^US-/i, "");
+
+  const country = clean(address.country);
+  const countryCode = clean(address.country_code).toLowerCase();
+
+  const displayName = clean(row.display_name);
+
+  const firstPart =
+    clean(row.name) ||
+    city ||
+    displayName.split(",")[0]?.trim() ||
+    "Location";
+
+  const subtitleParts = uniqueParts([
+    city,
+    state,
+    country,
+  ]).filter(
+    (value) => value.toLowerCase() !== firstPart.toLowerCase(),
+  );
+
+  return {
+    name: firstPart,
+    subtitle:
+      subtitleParts.length > 0
+        ? subtitleParts.join(", ")
+        : displayName,
+    full_name: displayName,
+    city,
+    state,
+    state_code: stateCode,
+    country,
+    country_code: countryCode,
+    type: clean(row.type),
+    addresstype: clean(row.addresstype),
+    category: clean(row.category),
+    importance:
+      typeof row.importance === "number"
+        ? row.importance
+        : Number(row.importance) || 0,
+    lat: Number(row.lat),
+    lng: Number(row.lon),
+  };
+}
+
+function normalize(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function isCityType(place: Record<string, unknown>): boolean {
+  const type = normalize(clean(place.type));
+  const addressType = normalize(clean(place.addresstype));
+
+  const cityTypes = new Set([
+    "city",
+    "town",
+    "village",
+    "municipality",
+    "borough",
+    "hamlet",
+  ]);
+
+  return cityTypes.has(type) || cityTypes.has(addressType);
+}
+
+function scorePlace(
+  place: Record<string, unknown>,
+  query: string,
+): number {
+  const q = normalize(query);
+
+  const name = normalize(clean(place.name));
+  const city = normalize(clean(place.city));
+  const state = normalize(clean(place.state));
+  const countryCode = normalize(clean(place.country_code));
+  const fullName = normalize(clean(place.full_name));
+  const importance = Number(place.importance) || 0;
+
+  let score = 0;
+
+  if (countryCode === "us") {
+    score += 10000;
+  }
+
+  if (isCityType(place)) {
+    score += 7000;
+  }
+
+  if (name === q) {
+    score += 6000;
+  } else if (name.startsWith(q)) {
+    score += 5000;
+  } else if (name.includes(q)) {
+    score += 2500;
+  }
+
+  if (city === q) {
+    score += 5500;
+  } else if (city.startsWith(q)) {
+    score += 4500;
+  } else if (city.includes(q)) {
+    score += 2000;
+  }
+
+  if (fullName.startsWith(q)) {
+    score += 1500;
+  } else if (fullName.includes(q)) {
+    score += 700;
+  }
+
+  if (state.startsWith(q)) {
+    score += 300;
+  }
+
+  score += Math.round(importance * 1000);
+
+  return score;
+}
+
+function dedupePlaces(
+  places: Record<string, unknown>[],
+): Record<string, unknown>[] {
+  const seen = new Set<string>();
+  const output: Record<string, unknown>[] = [];
+
+  for (const place of places) {
+    const lat = Number(place.lat);
+    const lng = Number(place.lng);
+
+    const key = [
+      normalize(clean(place.name)),
+      normalize(clean(place.city)),
+      normalize(clean(place.state)),
+      Number.isFinite(lat) ? lat.toFixed(4) : "",
+      Number.isFinite(lng) ? lng.toFixed(4) : "",
+    ].join("|");
+
+    if (seen.has(key)) continue;
+
+    seen.add(key);
+    output.push(place);
+  }
+
+  return output;
+}
+
+async function nominatimSearch(
+  params: Record<string, string>,
+): Promise<Record<string, unknown>[]> {
+  const url = new URL(
+    "https://nominatim.openstreetmap.org/search",
+  );
+
+  for (const [key, value] of Object.entries(params)) {
+    url.searchParams.set(key, value);
+  }
+
+  url.searchParams.set("format", "jsonv2");
+  url.searchParams.set("addressdetails", "1");
+  url.searchParams.set("namedetails", "1");
+  url.searchParams.set("accept-language", "en");
+  url.searchParams.set("countrycodes", "us");
+  url.searchParams.set("dedupe", "1");
+
+  const response = await fetch(url.toString(), {
+    headers: {
+      "User-Agent": "999-Wellness-Intelligence/1.0",
+      "Accept": "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error("Place service unavailable.");
+  }
+
+  const rows = await response.json();
+
+  return Array.isArray(rows)
+    ? rows
+        .filter((row) => row && typeof row === "object")
+        .map((row) => mapPlace(row as Record<string, unknown>))
+    : [];
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers });
+  }
+
+  try {
+    const body = await req.json();
+    const action = clean(body.action);
+
+    if (action === "search") {
+      const query = clean(body.query);
+
+      if (query.length < 2) {
+        return new Response(
+          JSON.stringify({ results: [] }),
+          { headers },
+        );
+      }
+
+      const [cityResults, generalResults] = await Promise.all([
+        nominatimSearch({
+          city: query,
+          limit: "12",
+        }).catch(() => []),
+
+        nominatimSearch({
+          q: query,
+          limit: "25",
+        }).catch(() => []),
+      ]);
+
+      const combined = dedupePlaces([
+        ...cityResults,
+        ...generalResults,
+      ]);
+
+      combined.sort((a, b) => {
+        const scoreDifference =
+          scorePlace(b, query) - scorePlace(a, query);
+
+        if (scoreDifference !== 0) {
+          return scoreDifference;
+        }
+
+        const aName = normalize(clean(a.name));
+        const bName = normalize(clean(b.name));
+
+        return aName.localeCompare(bName);
+      });
+
+      const results = combined.slice(0, 15);
+
+      return new Response(
+        JSON.stringify({ results }),
+        { headers },
+      );
+    }
+
+    if (action === "reverse") {
+      const lat = Number(body.lat);
+      const lng = Number(body.lng);
+
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        throw new Error("Invalid coordinates.");
+      }
+
+      const url = new URL(
+        "https://nominatim.openstreetmap.org/reverse",
+      );
+
+      url.searchParams.set("lat", String(lat));
+      url.searchParams.set("lon", String(lng));
+      url.searchParams.set("format", "jsonv2");
+      url.searchParams.set("addressdetails", "1");
+      url.searchParams.set("accept-language", "en");
+
+      const response = await fetch(url.toString(), {
+        headers: {
+          "User-Agent": "999-Wellness-Intelligence/1.0",
+          "Accept": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("Reverse geocoding unavailable.");
+      }
+
+      const row = await response.json();
+
+      return new Response(
+        JSON.stringify({
+          place: mapPlace(row),
+        }),
+        { headers },
+      );
+    }
+
+    return new Response(
+      JSON.stringify({
+        error: "Unsupported action.",
+      }),
+      {
+        status: 400,
+        headers,
+      },
+    );
+  } catch (error) {
+    return new Response(
+      JSON.stringify({
+        error:
+          error instanceof Error
+            ? error.message
+            : "Location lookup failed.",
+      }),
+      {
+        status: 500,
+        headers,
+      },
+    );
+  }
+});
