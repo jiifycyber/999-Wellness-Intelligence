@@ -135,33 +135,50 @@ class _CommunityMemberProfileScreenState
                 .eq('following_id', widget.userId)
                 .maybeSingle();
 
-      final likeRows = await Supabase.instance.client
-          .from('community_likes')
-          .select('post_id, user_id');
-
-      final commentRows = await Supabase.instance.client
-          .from('community_comments')
-          .select('post_id');
-
       final loadedPosts = (postRows as List)
           .map((row) => Map<String, dynamic>.from(row as Map))
           .toList();
 
-      for (final post in loadedPosts) {
-        final mediaPath = post['media_path']?.toString().trim() ?? '';
+      final postIds = loadedPosts
+          .map((post) => post['id']?.toString() ?? '')
+          .where((id) => id.isNotEmpty)
+          .toList();
 
-        if (mediaPath.isEmpty) {
-          continue;
-        }
+      final socialResults = await Future.wait<dynamic>([
+        postIds.isEmpty
+            ? Future.value(<dynamic>[])
+            : Supabase.instance.client
+                  .from('community_likes')
+                  .select('post_id, user_id')
+                  .inFilter('post_id', postIds),
+        postIds.isEmpty
+            ? Future.value(<dynamic>[])
+            : Supabase.instance.client
+                  .from('community_comments')
+                  .select('post_id')
+                  .inFilter('post_id', postIds),
+      ]);
 
-        try {
-          post['_media_url'] = await Supabase.instance.client.storage
-              .from('feed-media')
-              .createSignedUrl(mediaPath, 3600);
-        } catch (_) {
-          post['_media_url'] = '';
-        }
-      }
+      final likeRows = socialResults[0] as List;
+      final commentRows = socialResults[1] as List;
+
+      await Future.wait<void>(
+        loadedPosts.map((post) async {
+          final mediaPath = post['media_path']?.toString().trim() ?? '';
+
+          if (mediaPath.isEmpty) {
+            return;
+          }
+
+          try {
+            post['_media_url'] = await Supabase.instance.client.storage
+                .from('feed-media')
+                .createSignedUrl(mediaPath, 3600);
+          } catch (_) {
+            post['_media_url'] = '';
+          }
+        }),
+      );
 
       final loadedLikes = <String, int>{};
       final mine = <String>{};

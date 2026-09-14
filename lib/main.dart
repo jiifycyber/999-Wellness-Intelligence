@@ -17,6 +17,10 @@ Future<void> main() async {
   await Supabase.initialize(
     url: SupabaseConfig.url,
     anonKey: SupabaseConfig.anonKey,
+    authOptions: const FlutterAuthClientOptions(
+      autoRefreshToken: true,
+      persistSession: true,
+    ),
   );
 
   runApp(const WellnessIntelligenceApp());
@@ -60,7 +64,37 @@ class WellnessIntelligenceApp extends StatelessWidget {
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
         ),
       ),
-      home: const LoginScreen(),
+      home: const _WellnessAuthGate(),
+    );
+  }
+}
+
+class _WellnessAuthGate extends StatelessWidget {
+  const _WellnessAuthGate();
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = Supabase.instance.client.auth;
+
+    return StreamBuilder<AuthState>(
+      stream: auth.onAuthStateChange,
+      builder: (context, snapshot) {
+        final session = snapshot.data?.session ?? auth.currentSession;
+        final user = session?.user ?? auth.currentUser;
+
+        if (session == null || user == null) {
+          return const LoginScreen();
+        }
+
+        final role = user.userMetadata?['role']?.toString();
+        final name = user.userMetadata?['full_name']?.toString();
+
+        if (role == 'provider') {
+          return ProviderCommandCenterScreen(name: name ?? 'Wellness Provider');
+        }
+
+        return CustomerHomeScreen(name: name ?? 'Customer');
+      },
     );
   }
 }
@@ -21146,6 +21180,19 @@ class _CustomerAccountScreen extends StatefulWidget {
 class _CustomerAccountScreenState extends State<_CustomerAccountScreen> {
   int _profileTab = 0;
   bool _profileBusy = false;
+  late Future<Map<String, dynamic>> _profileFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _profileFuture = _getProfile();
+  }
+
+  void _refreshProfile() {
+    setState(() {
+      _profileFuture = _getProfile();
+    });
+  }
 
   Future<Map<String, dynamic>> _getProfile() async {
     final user = Supabase.instance.client.auth.currentUser;
@@ -21219,21 +21266,25 @@ class _CustomerAccountScreenState extends State<_CustomerAccountScreen> {
         .map((row) => Map<String, dynamic>.from(row as Map))
         .toList();
 
-    for (final post in posts) {
-      final mediaPath = post['media_path']?.toString().trim() ?? '';
+    await Future.wait<void>(
+      posts.map((post) async {
+        final mediaPath = post['media_path']?.toString().trim() ?? '';
 
-      post['_media_url'] = '';
+        post['_media_url'] = '';
 
-      if (mediaPath.isEmpty) {
-        continue;
-      }
+        if (mediaPath.isEmpty) {
+          return;
+        }
 
-      try {
-        post['_media_url'] = await Supabase.instance.client.storage
-            .from('feed-media')
-            .createSignedUrl(mediaPath, 3600);
-      } catch (_) {}
-    }
+        try {
+          post['_media_url'] = await Supabase.instance.client.storage
+              .from('feed-media')
+              .createSignedUrl(mediaPath, 3600);
+        } catch (_) {
+          post['_media_url'] = '';
+        }
+      }),
+    );
 
     int followers = 0;
     int following = 0;
@@ -21376,7 +21427,7 @@ class _CustomerAccountScreenState extends State<_CustomerAccountScreen> {
         return;
       }
 
-      setState(() {});
+      _refreshProfile();
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -21446,7 +21497,7 @@ class _CustomerAccountScreenState extends State<_CustomerAccountScreen> {
         return;
       }
 
-      setState(() {});
+      _refreshProfile();
 
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('Profile updated.')));
@@ -22072,7 +22123,7 @@ class _CustomerAccountScreenState extends State<_CustomerAccountScreen> {
 
       if (!mounted) return;
 
-      setState(() {});
+      _refreshProfile();
 
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('Post updated.')));
@@ -22146,7 +22197,7 @@ class _CustomerAccountScreenState extends State<_CustomerAccountScreen> {
 
       if (!mounted) return;
 
-      setState(() {});
+      _refreshProfile();
 
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('Post deleted.')));
@@ -22626,7 +22677,7 @@ class _CustomerAccountScreenState extends State<_CustomerAccountScreen> {
     return _CustomerPageShell(
       title: 'Profile',
       child: FutureBuilder<Map<String, dynamic>>(
-        future: _getProfile(),
+        future: _profileFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(

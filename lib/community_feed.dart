@@ -94,10 +94,16 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
   Map<String, int> commentCounts = {};
   Map<String, int> followerCounts = {};
 
-  static const int _feedPageSize = 30;
-  int _feedLimit = _feedPageSize;
+  static const int _feedPageSize = 20;
+  int _feedOffset = 0;
   bool hasMorePosts = true;
   bool loadingMore = false;
+
+  ScrollPosition? _parentScrollPosition;
+  bool _autoPagingScheduled = false;
+
+  final Map<String, String> _memberPhotoUrlCache = {};
+  final Map<String, String> _postMediaUrlCache = {};
 
   bool _showMarketsPanel = false;
 
@@ -136,6 +142,61 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    if (!widget.embedded) {
+      _detachParentScroll();
+      return;
+    }
+
+    final nextPosition = Scrollable.maybeOf(context)?.position;
+
+    if (identical(nextPosition, _parentScrollPosition)) {
+      return;
+    }
+
+    _detachParentScroll();
+    _parentScrollPosition = nextPosition;
+    _parentScrollPosition?.addListener(_handleParentScroll);
+  }
+
+  void _detachParentScroll() {
+    _parentScrollPosition?.removeListener(_handleParentScroll);
+    _parentScrollPosition = null;
+  }
+
+  void _handleParentScroll() {
+    final position = _parentScrollPosition;
+
+    if (position == null ||
+        !position.hasPixels ||
+        !position.hasContentDimensions) {
+      return;
+    }
+
+    if (position.extentAfter > 1200) {
+      return;
+    }
+
+    if (loading || loadingMore || !hasMorePosts || _autoPagingScheduled) {
+      return;
+    }
+
+    _autoPagingScheduled = true;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      _autoPagingScheduled = false;
+
+      if (!mounted || loading || loadingMore || !hasMorePosts) {
+        return;
+      }
+
+      await _loadMoreFeed();
+    });
+  }
+
+  @override
   void didUpdateWidget(covariant CommunityFeedScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
 
@@ -156,6 +217,8 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
 
   @override
   void dispose() {
+    _detachParentScroll();
+
     widget.controller?._openComposerCallback = null;
     widget.controller?._openStoryCallback = null;
     widget.controller?._openReelCallback = null;
@@ -277,6 +340,9 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
     }
 
     try {
+      final startIndex = loadMore ? _feedOffset : 0;
+      final endIndex = startIndex + _feedPageSize;
+
       final postRows = await Supabase.instance.client
           .from('community_posts')
           .select(
@@ -289,25 +355,34 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
             'content_type, expires_at, created_at',
           )
           .order('created_at', ascending: false)
-          .limit(_feedLimit + 1);
+          .range(startIndex, endIndex);
 
-      final liveRows = await Supabase.instance.client
-          .from('community_live_sessions')
-          .select(
-            'id, host_id, host_name, host_role, host_photo_url, '
-            'title, status, viewer_count, started_at, created_at',
-          )
-          .eq('status', 'live')
-          .order('created_at', ascending: false)
-          .limit(12);
+      final liveRows = loadMore
+          ? liveSessions
+          : await Supabase.instance.client
+                .from('community_live_sessions')
+                .select(
+                  'id, host_id, host_name, host_role, host_photo_url, '
+                  'title, status, viewer_count, started_at, created_at',
+                )
+                .eq('status', 'live')
+                .order('created_at', ascending: false)
+                .limit(12);
 
-      final memberRows = await Supabase.instance.client
-          .from('community_member_profiles')
-          .select(
-            'user_id, display_name, role, photo_url, photo_path, bio, created_at',
-          )
-          .order('created_at', ascending: false)
-          .limit(100);
+      final memberRows = loadMore
+          ? communityMembers
+          : await Supabase.instance.client
+                .from('community_member_profiles')
+                .select(
+                  'user_id, display_name, role, photo_url, photo_path, bio, created_at',
+                )
+                .order('created_at', ascending: false)
+                .limit(100);
+
+      final pageAuthorIds = (postRows as List)
+          .map((row) => (row as Map)["author_id"]?.toString() ?? "")
+          .where((id) => id.isNotEmpty)
+          .toSet();
 
       final latestMemberPhotos = <String, String>{};
 
@@ -316,7 +391,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
           final member = Map<String, dynamic>.from(raw as Map);
 
           final memberId = member['user_id']?.toString() ?? '';
-          if (memberId.isEmpty) {
+          if (memberId.isEmpty || !pageAuthorIds.contains(memberId)) {
             return;
           }
 
@@ -324,11 +399,21 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
           final path = member['photo_path']?.toString().trim() ?? '';
 
           if (path.isNotEmpty) {
-            try {
-              photo = await Supabase.instance.client.storage
-                  .from('community-profile-media')
-                  .createSignedUrl(path, 3600);
-            } catch (_) {}
+            final cachedPhoto = _memberPhotoUrlCache[path];
+
+            if (cachedPhoto != null && cachedPhoto.isNotEmpty) {
+              photo = cachedPhoto;
+            } else {
+              try {
+                photo = await Supabase.instance.client.storage
+                    .from('community-profile-media')
+                    .createSignedUrl(path, 3600);
+
+                if (photo.isNotEmpty) {
+                  _memberPhotoUrlCache[path] = photo;
+                }
+              } catch (_) {}
+            }
           }
 
           if (photo.isNotEmpty) {
@@ -341,8 +426,27 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
           .map((row) => Map<String, dynamic>.from(row as Map))
           .toList();
 
-      final hasMore = mappedPostRows.length > _feedLimit;
-      final mappedPosts = mappedPostRows.take(_feedLimit).toList();
+      final hasMore = mappedPostRows.length > _feedPageSize;
+      final mappedPosts = mappedPostRows.take(_feedPageSize).toList();
+
+      final oldStoryPosts = loadMore
+          ? List<Map<String, dynamic>>.from(storyPosts)
+          : <Map<String, dynamic>>[];
+      final oldReelPosts = loadMore
+          ? List<Map<String, dynamic>>.from(reelPosts)
+          : <Map<String, dynamic>>[];
+      final oldPosts = loadMore
+          ? List<Map<String, dynamic>>.from(posts)
+          : <Map<String, dynamic>>[];
+      final oldLikeCounts = loadMore
+          ? Map<String, int>.from(likeCounts)
+          : <String, int>{};
+      final oldCommentCounts = loadMore
+          ? Map<String, int>.from(commentCounts)
+          : <String, int>{};
+      final oldLikedPostIds = loadMore
+          ? Set<String>.from(likedPostIds)
+          : <String>{};
 
       final postIds = mappedPosts
           .map((post) => post['id']?.toString() ?? '')
@@ -399,12 +503,24 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
           final mediaPath = post['media_path']?.toString().trim() ?? '';
 
           if (mediaPath.isNotEmpty) {
-            try {
-              post['_media_url'] = await Supabase.instance.client.storage
-                  .from('feed-media')
-                  .createSignedUrl(mediaPath, 3600);
-            } catch (_) {
-              post['_media_url'] = '';
+            final cachedMedia = _postMediaUrlCache[mediaPath];
+
+            if (cachedMedia != null && cachedMedia.isNotEmpty) {
+              post['_media_url'] = cachedMedia;
+            } else {
+              try {
+                final signedUrl = await Supabase.instance.client.storage
+                    .from('feed-media')
+                    .createSignedUrl(mediaPath, 3600);
+
+                post['_media_url'] = signedUrl;
+
+                if (signedUrl.isNotEmpty) {
+                  _postMediaUrlCache[mediaPath] = signedUrl;
+                }
+              } catch (_) {
+                post['_media_url'] = '';
+              }
             }
           }
 
@@ -510,6 +626,17 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
         likedPostIds = mine;
         followingIds = following;
         followerCounts = followers;
+
+        if (loadMore) {
+          storyPosts = [...oldStoryPosts, ...storyPosts];
+          reelPosts = [...oldReelPosts, ...reelPosts];
+          posts = [...oldPosts, ...posts];
+          likeCounts = {...oldLikeCounts, ...likeCounts};
+          commentCounts = {...oldCommentCounts, ...commentCounts};
+          likedPostIds = {...oldLikedPostIds, ...likedPostIds};
+        }
+
+        _feedOffset = startIndex + mappedPosts.length;
         hasMorePosts = hasMore;
         loading = false;
         loadingMore = false;
@@ -528,7 +655,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
   }
 
   Future<void> _refreshFeed() async {
-    _feedLimit = _feedPageSize;
+    _feedOffset = 0;
     hasMorePosts = true;
     await _loadFeed();
   }
@@ -537,8 +664,6 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
     if (loading || loadingMore || !hasMorePosts) return;
 
     setState(() => loadingMore = true);
-    _feedLimit += _feedPageSize;
-
     await _loadFeed(loadMore: true);
   }
 
