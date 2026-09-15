@@ -14,6 +14,7 @@ import 'package:video_player/video_player.dart';
 
 import 'community_member_profile.dart';
 import 'premium_share_sheet.dart';
+import 'live_market_intelligence.dart';
 
 class CommunityFeedController {
   VoidCallback? _openComposerCallback;
@@ -3089,79 +3090,112 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
       );
     }
 
+    void openMarket(String title, Color accent) {
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => Scaffold(
+            backgroundColor: const Color(0xFF070B18),
+            appBar: AppBar(
+              backgroundColor: const Color(0xFF09152C),
+              foregroundColor: Colors.white,
+              title: Text('$title Intelligence'),
+            ),
+            body: SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(18),
+                child: LiveMarketIntelligencePanel(
+                  title: title,
+                  accent: accent,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     Widget intelligenceCard({
       required IconData icon,
       required String title,
       required String subtitle,
       required String status,
       required Color accent,
+      VoidCallback? onTap,
     }) {
-      return Container(
-        width: 104,
-        margin: const EdgeInsets.only(right: 6),
-        padding: const EdgeInsets.all(9),
-        decoration: BoxDecoration(
+      return Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
           borderRadius: BorderRadius.circular(19),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              const Color(0xFF09224A),
-              accent.withValues(alpha: .13),
-              const Color(0xFF10102D),
-            ],
+          mouseCursor: SystemMouseCursors.click,
+          child: Container(
+            width: 104,
+            margin: const EdgeInsets.only(right: 6),
+            padding: const EdgeInsets.all(9),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(19),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  const Color(0xFF09224A),
+                  accent.withValues(alpha: .13),
+                  const Color(0xFF10102D),
+                ],
+              ),
+              border: Border.all(color: accent.withValues(alpha: .75)),
+              boxShadow: [
+                BoxShadow(color: accent.withValues(alpha: .09), blurRadius: 18),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: accent.withValues(alpha: .12),
+                    border: Border.all(color: accent.withValues(alpha: .42)),
+                  ),
+                  child: Icon(icon, color: accent, size: 19),
+                ),
+                const Spacer(),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -.15,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFFA5B2CC),
+                    fontSize: 7.3,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 7),
+                Text(
+                  status,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: accent,
+                    fontSize: 7.4,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
           ),
-          border: Border.all(color: accent.withValues(alpha: .75)),
-          boxShadow: [
-            BoxShadow(color: accent.withValues(alpha: .09), blurRadius: 18),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: accent.withValues(alpha: .12),
-                border: Border.all(color: accent.withValues(alpha: .42)),
-              ),
-              child: Icon(icon, color: accent, size: 19),
-            ),
-            const Spacer(),
-            Text(
-              title,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 12.5,
-                fontWeight: FontWeight.w900,
-                letterSpacing: -.15,
-              ),
-            ),
-            const SizedBox(height: 3),
-            Text(
-              subtitle,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Color(0xFFA5B2CC),
-                fontSize: 7.3,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 7),
-            Text(
-              status,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: accent,
-                fontSize: 7.4,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ],
         ),
       );
     }
@@ -3269,6 +3303,8 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
                         subtitle: 'FX PAIRS',
                         status: 'LIVE MARKETS',
                         accent: const Color(0xFF2CE8FF),
+                        onTap: () =>
+                            openMarket('Forex', const Color(0xFF2CE8FF)),
                       ),
                       intelligenceCard(
                         icon: Icons.currency_bitcoin_rounded,
@@ -3276,6 +3312,8 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
                         subtitle: 'DIGITAL ASSETS',
                         status: '24/7 MARKET',
                         accent: const Color(0xFFFFB847),
+                        onTap: () =>
+                            openMarket('Crypto', const Color(0xFFFFB847)),
                       ),
                       intelligenceCard(
                         icon: Icons.show_chart_rounded,
@@ -3283,6 +3321,10 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
                         subtitle: 'US EQUITIES',
                         status: 'MARKET DATA',
                         accent: const Color(0xFFFF4E9F),
+                        onTap: () => openMarket(
+                          'Stocks & Indices',
+                          const Color(0xFFFF4E9F),
+                        ),
                       ),
                       intelligenceCard(
                         icon: Icons.oil_barrel_rounded,
@@ -3290,6 +3332,8 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
                         subtitle: 'GOLD • OIL',
                         status: 'GLOBAL DATA',
                         accent: const Color(0xFF9B50FF),
+                        onTap: () =>
+                            openMarket('Commodities', const Color(0xFF9B50FF)),
                       ),
                     ]
                   : [
@@ -3299,6 +3343,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
                         subtitle: 'LIVE ODDS',
                         status: '250+ GAMES',
                         accent: const Color(0xFF2CE8FF),
+                        onTap: widget.onSports,
                       ),
                       intelligenceCard(
                         icon: Icons.sports_football_rounded,
@@ -3306,6 +3351,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
                         subtitle: 'PROPS & ODDS',
                         status: 'LIVE LINES',
                         accent: const Color(0xFFFFB847),
+                        onTap: widget.onSports,
                       ),
                       intelligenceCard(
                         icon: Icons.sports_baseball_rounded,
@@ -3313,6 +3359,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
                         subtitle: 'LINES & PROPS',
                         status: "TODAY'S GAMES",
                         accent: const Color(0xFFFF4E9F),
+                        onTap: widget.onSports,
                       ),
                       intelligenceCard(
                         icon: Icons.sports_mma_rounded,
@@ -3320,6 +3367,7 @@ class _CommunityFeedScreenState extends State<CommunityFeedScreen> {
                         subtitle: 'PICKS & ODDS',
                         status: 'UPCOMING',
                         accent: const Color(0xFF9B50FF),
+                        onTap: widget.onSports,
                       ),
                     ],
             ),

@@ -1,5 +1,6 @@
 import 'customer_provider_chat.dart';
 import 'community_feed.dart';
+import 'live_market_intelligence.dart';
 
 import 'dart:ui';
 
@@ -3449,34 +3450,7 @@ class _SportsTradingDetailPanel extends StatelessWidget {
 
         const SizedBox(height: 18),
 
-        Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(25),
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFF0B2047), Color(0xFF0A1733), Color(0xFF120D30)],
-            ),
-            border: Border.all(color: accent.withValues(alpha: .38)),
-          ),
-          child: Row(
-            children: [
-              Icon(Icons.graphic_eq_rounded, color: accent, size: 23),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  '999 Intelligence is preparing live $title data inside your Sports & Trading hub.',
-                  style: const TextStyle(
-                    color: Color(0xFFB6C4DF),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
+        LiveMarketIntelligencePanel(title: title, accent: accent),
       ],
     );
   }
@@ -4270,6 +4244,7 @@ class _CustomerHomeV4Header extends StatelessWidget {
     required this.onMessages,
     required this.onProfile,
     this.onCreate,
+    this.createIcon = Icons.add_rounded,
   });
 
   final VoidCallback onSearch;
@@ -4277,40 +4252,201 @@ class _CustomerHomeV4Header extends StatelessWidget {
   final VoidCallback onMessages;
   final VoidCallback onProfile;
   final VoidCallback? onCreate;
+  final IconData createIcon;
 
-  Widget _button({
+  Widget _commandButton({
     required IconData icon,
     required VoidCallback onTap,
+    required bool compact,
     bool dot = false,
-    bool compact = false,
   }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(compact ? 13 : 15),
-      child: Container(
-        width: compact ? 40 : 46,
-        height: compact ? 44 : 50,
-        decoration: BoxDecoration(
-          color: const Color(0xFF080D19),
-          borderRadius: BorderRadius.circular(15),
-          border: Border.all(
-            color: const Color(0xFF6578C8).withValues(alpha: .22),
+    final size = compact ? 49.0 : 54.0;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: const RadialGradient(
+              colors: [Color(0xFF102D59), Color(0xFF07162E), Color(0xFF030815)],
+            ),
+            border: Border.all(
+              color: const Color(0xFF37DFFF).withValues(alpha: .72),
+              width: 1.2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF24DFFF).withValues(alpha: .19),
+                blurRadius: 12,
+              ),
+              BoxShadow(
+                color: const Color(0xFF9B45FF).withValues(alpha: .12),
+                blurRadius: 18,
+                spreadRadius: 1,
+              ),
+              const BoxShadow(
+                color: Color(0xFF1B315B),
+                blurRadius: 1,
+                offset: Offset(0, -1),
+              ),
+            ],
           ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Icon(icon, color: Colors.white, size: compact ? 24 : 26),
+              if (dot)
+                Positioned(
+                  top: compact ? 6 : 7,
+                  right: compact ? 6 : 7,
+                  child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xFFFF47D7),
+                      border: Border.all(
+                        color: const Color(0xFF120725),
+                        width: 1.2,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFFF47D7).withValues(alpha: .65),
+                          blurRadius: 7,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _logo(bool desktop) {
+    final size = desktop ? 86.0 : 82.0;
+
+    return Container(
+      width: size,
+      height: size,
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: const SweepGradient(
+          colors: [
+            Color(0xFF21E8FF),
+            Color(0xFF5261FF),
+            Color(0xFFFF42D5),
+            Color(0xFF7B45FF),
+            Color(0xFF21E8FF),
+          ],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF20DFFF).withValues(alpha: .42),
+            blurRadius: 22,
+            spreadRadius: 1,
+          ),
+          BoxShadow(
+            color: const Color(0xFFFF43D1).withValues(alpha: .28),
+            blurRadius: 25,
+          ),
+        ],
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: const RadialGradient(
+            center: Alignment(-.25, -.35),
+            colors: [
+              Color(0xFFB43DFF),
+              Color(0xFF583DFF),
+              Color(0xFF052759),
+              Color(0xFF020918),
+            ],
+          ),
+          border: Border.all(color: Colors.white.withValues(alpha: .30)),
         ),
         child: Stack(
           alignment: Alignment.center,
           children: [
-            Icon(icon, color: const Color(0xFFD8DCEF), size: compact ? 20 : 22),
-            if (dot)
-              const Positioned(
-                top: 8,
-                right: 8,
-                child: CircleAvatar(
-                  radius: 3.5,
-                  backgroundColor: Color(0xFFB44CFF),
+            Icon(
+              Icons.blur_on_rounded,
+              color: Colors.white,
+              size: desktop ? 35 : 32,
+            ),
+            Positioned(
+              bottom: desktop ? 10 : 9,
+              child: Text(
+                '999',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: desktop ? 11 : 10,
+                  height: 1,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: .6,
+                  shadows: const [
+                    Shadow(color: Color(0xFF29E9FF), blurRadius: 7),
+                  ],
                 ),
               ),
+            ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _profileButton(bool desktop) {
+    final size = desktop ? 59.0 : 55.0;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onProfile,
+        customBorder: const CircleBorder(),
+        child: Container(
+          width: size,
+          height: size,
+          padding: const EdgeInsets.all(3),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: const SweepGradient(
+              colors: [
+                Color(0xFF29E8FF),
+                Color(0xFF5557FF),
+                Color(0xFFFF46D3),
+                Color(0xFF9A47FF),
+                Color(0xFF29E8FF),
+              ],
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF20DFFF).withValues(alpha: .30),
+                blurRadius: 14,
+              ),
+              BoxShadow(
+                color: const Color(0xFFFF45CF).withValues(alpha: .28),
+                blurRadius: 18,
+              ),
+            ],
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: const Color(0xFF030812),
+              border: Border.all(color: Colors.white.withValues(alpha: .22)),
+            ),
+            child: const ClipOval(child: _CurrentUserTopBarAvatar()),
+          ),
         ),
       ),
     );
@@ -4319,166 +4455,122 @@ class _CustomerHomeV4Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final desktop = MediaQuery.sizeOf(context).width >= 1180;
+    final compact = !desktop;
 
     return Container(
       padding: EdgeInsets.fromLTRB(
-        desktop ? 22 : 12,
-        12,
-        desktop ? 22 : 12,
-        12,
+        desktop ? 22 : 8,
+        desktop ? 12 : 8,
+        desktop ? 22 : 8,
+        desktop ? 12 : 9,
       ),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
           colors: [
-            Color(0xFF061C43),
-            Color(0xFF10265E),
-            Color(0xFF220D47),
-            Color(0xFF020817),
+            Color(0xFF020713),
+            Color(0xFF071B3A),
+            Color(0xFF10123D),
+            Color(0xFF210A3D),
+            Color(0xFF020712),
           ],
-        ),
-        border: Border(
-          bottom: BorderSide(
-            color: const Color(0xFF20DDFF).withValues(alpha: .40),
-          ),
+          stops: [0, .24, .52, .76, 1],
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF553BFF).withValues(alpha: .08),
-            blurRadius: 28,
+            color: const Color(0xFF1ADFFF).withValues(alpha: .12),
+            blurRadius: 24,
             offset: const Offset(0, 8),
+          ),
+          BoxShadow(
+            color: const Color(0xFF9D42FF).withValues(alpha: .10),
+            blurRadius: 30,
           ),
         ],
       ),
-      child: Row(
+      child: Column(
         children: [
-          Container(
-            width: desktop ? 47 : 42,
-            height: desktop ? 47 : 42,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFFC338FF),
-                  Color(0xFF6253FF),
-                  Color(0xFF1AC7FF),
-                ],
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF7E3EFF).withValues(alpha: .38),
-                  blurRadius: 19,
-                ),
-              ],
-            ),
-            child: const Icon(
-              Icons.blur_on_rounded,
-              color: Colors.white,
-              size: 25,
-            ),
-          ),
-          SizedBox(width: desktop ? 14 : 9),
-          Expanded(
-            child: Row(
-              children: [
-                Text(
-                  "999 WELLNESS",
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: desktop ? 19 : 16.5,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: .8,
+          Row(
+            children: [
+              _logo(desktop),
+              SizedBox(width: desktop ? 12 : 5),
+              Expanded(
+                child: Container(
+                  height: desktop ? 78 : 74,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: desktop ? 8 : 5,
+                    vertical: 5,
                   ),
-                ),
-                if (desktop) ...[
-                  const SizedBox(width: 34),
-                  Expanded(
-                    child: Align(
-                      alignment: Alignment.center,
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 570),
-                        child: Material(
-                          color: Colors.transparent,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(desktop ? 34 : 31),
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Color(0xFF10284F),
+                        Color(0xFF07152E),
+                        Color(0xFF090C23),
+                        Color(0xFF19092D),
+                      ],
+                    ),
+                    border: Border.all(
+                      color: const Color(0xFF36DFFF).withValues(alpha: .78),
+                      width: 1.8,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF24DFFF).withValues(alpha: .16),
+                        blurRadius: 18,
+                      ),
+                      BoxShadow(
+                        color: const Color(0xFFFF42D0).withValues(alpha: .11),
+                        blurRadius: 22,
+                      ),
+                      const BoxShadow(
+                        color: Color(0xFF1D3762),
+                        offset: Offset(0, -1),
+                        blurRadius: 1,
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      if (desktop) ...[
+                        Expanded(
                           child: InkWell(
                             onTap: onSearch,
-                            borderRadius: BorderRadius.circular(16),
+                            borderRadius: BorderRadius.circular(18),
                             child: Container(
-                              height: 50,
+                              height: 42,
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 15,
+                                horizontal: 14,
                               ),
                               decoration: BoxDecoration(
-                                gradient: const LinearGradient(
-                                  begin: Alignment.centerLeft,
-                                  end: Alignment.centerRight,
-                                  colors: [
-                                    Color(0xFF101B38),
-                                    Color(0xFF12132C),
-                                    Color(0xFF19102D),
-                                  ],
-                                ),
-                                borderRadius: BorderRadius.circular(16),
+                                borderRadius: BorderRadius.circular(18),
+                                color: const Color(0xFF061126),
                                 border: Border.all(
-                                  color: const Color(0xFF725BFF)
-                                      .withValues(alpha: .42),
+                                  color: const Color(0xFF665CFF)
+                                      .withValues(alpha: .38),
                                 ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: const Color(0xFF703EFF)
-                                        .withValues(alpha: .08),
-                                    blurRadius: 18,
-                                  ),
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: .22),
-                                    blurRadius: 12,
-                                    offset: const Offset(0, 5),
-                                  ),
-                                ],
                               ),
-                              child: Row(
+                              child: const Row(
                                 children: [
-                                  const Icon(
+                                  Icon(
                                     Icons.search_rounded,
-                                    color: Color(0xFFAFA8FF),
-                                    size: 20,
+                                    color: Color(0xFF62E8FF),
+                                    size: 19,
                                   ),
-                                  const SizedBox(width: 11),
-                                  const Expanded(
+                                  SizedBox(width: 9),
+                                  Expanded(
                                     child: Text(
-                                      "Search people, providers, services, or wellness",
-                                      maxLines: 1,
+                                      'Search providers, people, or services',
                                       overflow: TextOverflow.ellipsis,
                                       style: TextStyle(
-                                        color: Color(0xFF9099B5),
-                                        fontSize: 12,
+                                        color: Color(0xFF91A1C0),
+                                        fontSize: 11,
                                         fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 9,
-                                      vertical: 5,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF7B50FF)
-                                          .withValues(alpha: .12),
-                                      borderRadius: BorderRadius.circular(9),
-                                      border: Border.all(
-                                        color: const Color(0xFF8C6AFF)
-                                            .withValues(alpha: .20),
-                                      ),
-                                    ),
-                                    child: const Text(
-                                      "EXPLORE",
-                                      style: TextStyle(
-                                        color: Color(0xFFB8A7FF),
-                                        fontSize: 8,
-                                        fontWeight: FontWeight.w900,
-                                        letterSpacing: .7,
                                       ),
                                     ),
                                   ),
@@ -4487,63 +4579,60 @@ class _CustomerHomeV4Header extends StatelessWidget {
                             ),
                           ),
                         ),
+                        SizedBox(width: 10),
+                      ],
+                      if (onCreate != null) ...[
+                        _commandButton(
+                          icon: createIcon,
+                          onTap: onCreate!,
+                          compact: compact,
+                        ),
+                        SizedBox(width: desktop ? 8 : 5),
+                      ],
+                      _commandButton(
+                        icon: Icons.notifications_none_rounded,
+                        onTap: onNotifications,
+                        compact: compact,
+                        dot: true,
                       ),
-                    ),
+                      SizedBox(width: desktop ? 8 : 5),
+                      _commandButton(
+                        icon: Icons.chat_bubble_outline_rounded,
+                        onTap: onMessages,
+                        compact: compact,
+                        dot: true,
+                      ),
+                      SizedBox(width: desktop ? 9 : 6),
+                      _profileButton(desktop),
+                    ],
                   ),
-                  const SizedBox(width: 24),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 7),
+          Container(
+            height: 3,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              gradient: const LinearGradient(
+                colors: [
+                  Color(0xFF22E8FF),
+                  Color(0xFF4267FF),
+                  Color(0xFF9A45FF),
+                  Color(0xFFFF43D0),
                 ],
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF28E8FF).withValues(alpha: .45),
+                  blurRadius: 9,
+                ),
+                BoxShadow(
+                  color: const Color(0xFFFF43D0).withValues(alpha: .35),
+                  blurRadius: 11,
+                ),
               ],
-            ),
-          ),
-          if (!desktop && onCreate != null) ...[
-            _button(icon: Icons.add_rounded, onTap: onCreate!, compact: true),
-            const SizedBox(width: 6),
-          ],
-          _button(
-            icon: Icons.notifications_none_rounded,
-            onTap: onNotifications,
-            dot: true,
-            compact: !desktop,
-          ),
-          SizedBox(width: desktop ? 9 : 6),
-          _button(
-            icon: Icons.chat_bubble_outline_rounded,
-            onTap: onMessages,
-            dot: true,
-            compact: !desktop,
-          ),
-          SizedBox(width: desktop ? 9 : 6),
-          InkWell(
-            onTap: onProfile,
-            borderRadius: BorderRadius.circular(22),
-            child: Container(
-              width: desktop ? 48 : 42,
-              height: desktop ? 48 : 42,
-              padding: const EdgeInsets.all(2),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: const LinearGradient(
-                  colors: [
-                    Color(0xFFB44DFF),
-                    Color(0xFF5B52FF),
-                    Color(0xFF45C8FF),
-                  ],
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF8A4DFF).withValues(alpha: .34),
-                    blurRadius: 15,
-                  ),
-                ],
-              ),
-              child: Container(
-                padding: const EdgeInsets.all(2),
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Color(0xFF070B15),
-                ),
-                child: const ClipOval(child: _CurrentUserTopBarAvatar()),
-              ),
             ),
           ),
         ],
@@ -11398,13 +11487,6 @@ class _CustomerPageShell extends StatelessWidget {
   Widget build(BuildContext context) {
     final desktop = MediaQuery.sizeOf(context).width >= 1180;
 
-    final user = Supabase.instance.client.auth.currentUser;
-
-    final displayName =
-        user?.userMetadata?['full_name']?.toString() ??
-        user?.userMetadata?['name']?.toString() ??
-        'Customer';
-
     return Scaffold(
       backgroundColor: const Color(0xFF03050B),
 
@@ -11481,10 +11563,35 @@ class _CustomerPageShell extends StatelessWidget {
                 Expanded(
                   child: Column(
                     children: [
-                      _CustomerV3TopBar(
-                        desktop: desktop,
-                        displayName: displayName,
-                        actions: actions,
+                      _CustomerHomeV4Header(
+                        onSearch: () => _search(context),
+                        onNotifications: () {
+                          if (title == 'Notifications') return;
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  const _CustomerNotificationsV3Screen(),
+                            ),
+                          );
+                        },
+                        onMessages: () {
+                          if (_messagePage) return;
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const _CustomerMessagesV3Screen(),
+                            ),
+                          );
+                        },
+                        onProfile: () {
+                          if (_profilePage) return;
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const _CustomerAccountScreen(),
+                            ),
+                          );
+                        },
+                        onCreate: () => Navigator.of(context).maybePop(),
+                        createIcon: Icons.arrow_back_rounded,
                       ),
 
                       if (desktop)
